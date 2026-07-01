@@ -51,6 +51,7 @@
                         <button hx-post="/services/{{ .Service.ID }}/gallery/search" 
                                 hx-target="#gallery-results"
                                 hx-indicator="#gallery-indicator"
+                                hx-trigger="click, reload-search from:body"
                                 class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg shadow transition text-sm flex items-center gap-2">
                             <span>Wyszukaj w lokalnej galerii</span>
                             <svg id="gallery-indicator" class="animate-spin h-4 w-4 text-white htmx-indicator" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

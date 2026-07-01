@@ -384,6 +384,7 @@ func (s *Server) handleGallerySearch(w http.ResponseWriter, r *http.Request) {
 		"ServiceID":   id,
 		"IsFallback":  isFallback,
 		"Matches":     results,
+		"RequiredCount": s.cfg.TargetPhotosPerService,
 	}
 
 	err = s.tmpl.ExecuteTemplate(w, "gallery_results.html", data)
@@ -552,22 +553,10 @@ func (s *Server) handleRejectPhoto(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.handleWorkspaceUpdate(w, r, photo.ServiceID)
+	// Set HTMX trigger header to reload search results automatically
+	w.Header().Set("HX-Trigger", "reload-search")
 
-	// Append restoring script
-	if photo != nil && photo.FilePath != "" {
-		_, _ = w.Write([]byte(fmt.Sprintf(`
-			<script>
-				(function() {
-					const path = %q;
-					const el = document.querySelector('[data-photo-path="' + CSS.escape(path) + '"]');
-					if (el) {
-						el.style.display = '';
-					}
-				})();
-			</script>
-		`, photo.FilePath)))
-	}
+	s.handleWorkspaceUpdate(w, r, photo.ServiceID)
 }
 
 func (s *Server) handleAddPhoto(w http.ResponseWriter, r *http.Request) {
