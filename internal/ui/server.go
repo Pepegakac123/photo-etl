@@ -113,6 +113,7 @@ type serviceProgressView struct {
 	ApprovedCount int
 	RequiredCount int
 	PendingCount  int
+	Oob           bool
 }
 
 func (s *Server) getSidebarData(ctx context.Context) ([]*serviceProgressView, error) {
@@ -290,15 +291,8 @@ func (s *Server) handleWorkspaceUpdate(w http.ResponseWriter, r *http.Request, s
 	// 3. Render the OOB sidebar button progress update
 	progress, err := s.getSingleServiceProgress(ctx, serviceID)
 	if err == nil {
-		type sidebarButtonOob struct {
-			*serviceProgressView
-			Oob bool
-		}
-		btnData := sidebarButtonOob{
-			serviceProgressView: progress,
-			Oob:                 true,
-		}
-		err = s.tmpl.ExecuteTemplate(w, "sidebar_button", btnData)
+		progress.Oob = true
+		err = s.tmpl.ExecuteTemplate(w, "sidebar_button", progress)
 		if err != nil {
 			log.Printf("Template sidebar_button render error: %v", err)
 		}
