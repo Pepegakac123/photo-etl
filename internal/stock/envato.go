@@ -7,12 +7,14 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 )
 
 type EnvatoPhoto struct {
 	ID         string `json:"id"`
 	Title      string `json:"title"`
 	PreviewURL string `json:"preview_url"`
+	FullURL    string `json:"full_url"`
 }
 
 type EnvatoClient struct {
@@ -67,13 +69,18 @@ func (c *EnvatoClient) TestConnection(ctx context.Context) error {
 
 type envatoSearchResponse struct {
 	Matches []struct {
-		ID       interface{} `json:"id"` // can be float64 or string in JSON
-		Name     string      `json:"name"`
-		Previews struct {
+		ID        interface{} `json:"id"` // can be float64 or string in JSON
+		Name      string      `json:"name"`
+		Previews  struct {
 			ThumbnailPreview struct {
 				LargeURL string `json:"large_url"`
 			} `json:"thumbnail_preview"`
 		} `json:"previews"`
+		ImageURLs []struct {
+			Name  string `json:"name"`
+			URL   string `json:"url"`
+			Width int    `json:"width"`
+		} `json:"image_urls"`
 	} `json:"matches"`
 }
 
@@ -131,10 +138,21 @@ func (c *EnvatoClient) SearchPhotos(ctx context.Context, term string, page, page
 			continue // skip items without previews
 		}
 
+		// Find the highest resolution image URL in image_urls
+		fullURL := preview
+		maxGenWidth := 0
+		for _, img := range item.ImageURLs {
+			if img.Width > maxGenWidth {
+				maxGenWidth = img.Width
+				fullURL = img.URL
+			}
+		}
+
 		photos = append(photos, &EnvatoPhoto{
 			ID:         itemID,
 			Title:      item.Name,
 			PreviewURL: preview,
+			FullURL:    fullURL,
 		})
 	}
 
@@ -165,6 +183,7 @@ func (c *EnvatoClient) getMockPhotos(term string, page, pageSize int) []*EnvatoP
 			ID:         id,
 			Title:      fmt.Sprintf("Mock %s - Photo %d", term, i+1),
 			PreviewURL: mockUrls[idx],
+			FullURL:    strings.ReplaceAll(mockUrls[idx], "w=500", "w=2000"),
 		})
 	}
 	return photos

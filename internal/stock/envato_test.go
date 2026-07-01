@@ -57,7 +57,7 @@ func TestEnvatoSearch(t *testing.T) {
 	}
 
 	item := results[0]
-	if item.ID != "11223344" || item.Title != "Modern Bathroom Renovation" || item.PreviewURL != "https://previews.envato.com/fake-preview.jpg" {
+	if item.ID != "11223344" || item.Title != "Modern Bathroom Renovation" || item.PreviewURL != "https://previews.envato.com/fake-preview.jpg" || item.FullURL != "https://previews.envato.com/fake-preview.jpg" {
 		t.Errorf("unexpected item values: %+v", item)
 	}
 }

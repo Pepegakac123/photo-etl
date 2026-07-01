@@ -84,9 +84,15 @@ type contentPart struct {
 	Text string `json:"text"`
 }
 
+type responseFormatStruct struct {
+	Type      string `json:"type"`
+	ImageSize string `json:"image_size,omitempty"`
+}
+
 type interactionsRequest struct {
-	Model string        `json:"model"`
-	Input []contentPart `json:"input"`
+	Model          string                `json:"model"`
+	Input          []contentPart         `json:"input"`
+	ResponseFormat *responseFormatStruct `json:"response_format,omitempty"`
 }
 
 type contentBlock struct {
@@ -123,14 +129,28 @@ func (c *BananaClient) GenerateImage(ctx context.Context, serviceName, clientCou
 		serviceName, clientCountry, serviceDescription, c.basePrompt,
 	)
 
+	var responseFormat *responseFormatStruct
+	if modelToUse == "gemini-3.1-flash-image" || modelToUse == "gemini-3-pro-image" {
+		responseFormat = &responseFormatStruct{
+			Type:      "image",
+			ImageSize: "2K",
+		}
+	} else if modelToUse == "gemini-3.1-flash-lite-image" {
+		responseFormat = &responseFormatStruct{
+			Type:      "image",
+			ImageSize: "1K",
+		}
+	}
+
 	payload := interactionsRequest{
-		Model: modelToUse,
+		Model:          modelToUse,
 		Input: []contentPart{
 			{
 				Type: "text",
 				Text: prompt,
 			},
 		},
+		ResponseFormat: responseFormat,
 	}
 
 	bodyBytes, err := json.Marshal(payload)
