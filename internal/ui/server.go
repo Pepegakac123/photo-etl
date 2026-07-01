@@ -976,9 +976,13 @@ func (s *Server) handleExportStream(w http.ResponseWriter, r *http.Request) {
 				destPath := filepath.Join(destServiceDir, filename)
 
 				if p.Source == "Stock" {
-					sendLog(fmt.Sprintf("  -> Pobieranie zdjęcia stockowego: %s ...", filename))
+					if strings.Contains(p.FilePath, "envatousercontent") {
+						sendLog(fmt.Sprintf("  -> Pobieranie oryginalnego zdjęcia z Envato: %s ...", filename))
+					} else {
+						sendLog(fmt.Sprintf("  -> Pobieranie zdjęcia stockowego (Unsplash mock): %s ...", filename))
+					}
 					if err := downloadFile(p.FilePath, destPath); err != nil {
-						sendLog(fmt.Sprintf("  [ERR] Błąd pobierania stocku z %s: %v", p.FilePath, err))
+						sendLog(fmt.Sprintf("  [ERR] Błąd pobierania z %s: %v", p.FilePath, err))
 					} else {
 						sendLog(fmt.Sprintf("  [OK] Pomyślnie pobrano: %s", filename))
 						copyCount++
