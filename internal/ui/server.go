@@ -5,6 +5,9 @@ import (
 	"context"
 	"fmt"
 	"html/template"
+	"image"
+	"image/jpeg"
+	"image/png"
 	"io"
 	"log"
 	"net/http"
@@ -984,6 +987,12 @@ func (s *Server) handleExportStream(w http.ResponseWriter, r *http.Request) {
 					if err := downloadFile(p.FilePath, destPath); err != nil {
 						sendLog(fmt.Sprintf("  [ERR] Błąd pobierania z %s: %v", p.FilePath, err))
 					} else {
+						// Ensure Envato stock photos are at least 1920px wide
+						if err := ensureMinimumWidth(destPath, 1920); err != nil {
+							sendLog(fmt.Sprintf("  [SYSTEM] Ostrzeżenie: Błąd podbicia rozdzielczości do 1920px: %v", err))
+						} else {
+							sendLog(fmt.Sprintf("  [SYSTEM] Dopasowano rozdzielczość zdjęcia do min. 1920px."))
+						}
 						sendLog(fmt.Sprintf("  [OK] Pomyślnie pobrano: %s", filename))
 						copyCount++
 					}
@@ -1008,6 +1017,9 @@ func (s *Server) handleExportStream(w http.ResponseWriter, r *http.Request) {
 	if s.cfg.GopressCmdPath != "" {
 		if _, err := os.Stat(s.cfg.GopressCmdPath); err == nil {
 			args := []string{"-i", exportDir}
+			if s.cfg.LocalGalleryPath != "" {
+				args = append(args, "-g", s.cfg.LocalGalleryPath)
+			}
 			if s.cfg.GopressUpload {
 				args = append(args, "--upload")
 				if s.cfg.GopressWpDomain != "" {
@@ -1075,4 +1087,53 @@ func (s *Server) handleExportStream(w http.ResponseWriter, r *http.Request) {
 
 	sendProgress(100, "Zakończono!")
 	send("complete", "done")
+}
+
+func ensureMinimumWidth(filePath string, minWidth int) error {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	config, format, err := image.DecodeConfig(file)
+	if err != nil {
+		return err
+	}
+
+	if config.Width >= minWidth {
+		return nil
+	}
+
+	// Seek to beginning
+	_, _ = file.Seek(0, 0)
+
+	img, _, err := image.Decode(file)
+	if err != nil {
+		return err
+	}
+	file.Close() // Close before recreating the file
+
+	newHeight := (minWidth * config.Height) / config.Width
+	newImg := image.NewRGBA(image.Rect(0, 0, minWidth, newHeight))
+
+	// Scaling up using nearest neighbor interpolation
+	for y := 0; y < newHeight; y++ {
+		for x := 0; x < minWidth; x++ {
+			srcX := (x * config.Width) / minWidth
+			srcY := (y * config.Height) / minWidth
+			newImg.Set(x, y, img.At(img.Bounds().Min.X+srcX, img.Bounds().Min.Y+srcY))
+		}
+	}
+
+	outFile, err := os.Create(filePath)
+	if err != nil {
+		return err
+	}
+	defer outFile.Close()
+
+	if format == "png" {
+		return png.Encode(outFile, newImg)
+	}
+	return jpeg.Encode(outFile, newImg, &jpeg.Options{Quality: 95})
 }
