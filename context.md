@@ -73,3 +73,4 @@ Podczas pracy ze mną nad tym projektem, obowiązują Cię następujące reguły
 - **Szczerość kompetencji:** Jeśli nie wiesz, jak dokładnie działa konkretne API (np. Envato lub Nano Banana), nie udawaj, że wiesz i nie zmyślaj endpointów. Poinformuj mnie o tym, a ja dostarczę Ci odpowiednią dokumentację lub linki.
 - **Brak założeń co do AI:** Nie zakładaj z góry, jakich konkretnie modeli AI użyjemy do każdego z zadań, chyba że jest to podane w konfiguracji. Przed implementacją zapytaj o preferowany model do danego zadania (np. tłumaczenie vs. generowanie).
 - **Proaktywność:** Jeśli podczas pisania kodu wpadniesz na pomysł usprawnienia (np. optymalizacja bazy, lepszy caching, ciekawsze użycie HTMX), zatrzymaj się, zaproponuj to rozwiązanie i poczekaj na moją decyzję.
+- Każdy krok developmentu commituj i pushuj do naszego repo git po wcześniejszym upewnieniu sie że testy przechodzą
