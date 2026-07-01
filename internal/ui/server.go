@@ -19,6 +19,7 @@ import (
 	"github.com/Pepegakac123/photo-etl/internal/generator"
 	"github.com/Pepegakac123/photo-etl/internal/stock"
 	"github.com/Pepegakac123/photo-etl/internal/storage"
+	"github.com/Pepegakac123/photo-etl/internal/translate"
 )
 
 type Server struct {
@@ -202,12 +203,27 @@ func (s *Server) handleWorkspace(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Translate service name to English for Envato Stock search field placeholder/default value
+	translateText := svc.Name
+	for _, sep := range []string{"_", " - "} {
+		if parts := strings.SplitN(translateText, sep, 2); len(parts) > 1 {
+			translateText = strings.TrimSpace(parts[0])
+			break
+		}
+	}
+
+	translatedName := translateText
+	if tName, err := translate.Translate(ctx, translateText, "auto", "en"); err == nil && tName != "" {
+		translatedName = tName
+	}
+
 	data := map[string]interface{}{
 		"Service":       svc,
 		"Photos":        activePhotos,
 		"ApprovedCount": approvedCount,
 		"RequiredCount": s.cfg.TargetPhotosPerService,
 		"PendingCount":  pendingCount,
+		"EnglishName":   translatedName,
 	}
 
 	err = s.tmpl.ExecuteTemplate(w, "workspace", data)
