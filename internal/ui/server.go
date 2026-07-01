@@ -87,6 +87,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("GET /", s.handleIndex)
 	s.mux.HandleFunc("GET /services/{id}", s.handleWorkspace)
 	s.mux.HandleFunc("POST /services/{id}/gallery/search", s.handleGallerySearch)
+	s.mux.HandleFunc("POST /services/{id}/gallery/manual-search", s.handleGalleryManualSearch)
 	s.mux.HandleFunc("POST /services/{id}/stock/search", s.handleStockSearch)
 	s.mux.HandleFunc("POST /services/{id}/generate", s.handleGenerateImage)
 	s.mux.HandleFunc("POST /photos/{id}/approve", s.handleApprovePhoto)
@@ -556,6 +557,133 @@ func (s *Server) handleGallerySearch(w http.ResponseWriter, r *http.Request) {
 		"ServiceID: ": id, // match structure helper
 		"ServiceID":   id,
 		"IsFallback":  isFallback,
+		"Matches":     results,
+		"RequiredCount": s.cfg.TargetPhotosPerService,
+	}
+
+	err = s.tmpl.ExecuteTemplate(w, "gallery_results.html", data)
+	if err != nil {
+		log.Printf("Template gallery_results render error: %v", err)
+	}
+}
+
+func (s *Server) handleGalleryManualSearch(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	idStr := r.PathValue("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid service ID", http.StatusBadRequest)
+		return
+	}
+
+	_, err = s.db.GetService(ctx, id)
+	if err != nil {
+		http.Error(w, "Service not found", http.StatusNotFound)
+		return
+	}
+
+	query := r.FormValue("manual-gallery-query")
+	if query == "" {
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte(`<p class="text-sm text-gray-500 col-span-2">Wpisz nazwę folderu, aby wyszukać.</p>`))
+		return
+	}
+
+	// List all indexed folders
+	folders, err := s.db.ListGalleryFolders(ctx)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to list gallery folders: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	type matchInfo struct {
+		folder *storage.GalleryFolder
+		score  float64
+	}
+	var matches []matchInfo
+
+	queryLower := strings.ToLower(query)
+	for _, f := range folders {
+		score := 0.0
+		folderNameLower := strings.ToLower(f.FolderName)
+		germanLower := strings.ToLower(f.GermanName)
+		polishLower := strings.ToLower(f.PolishName)
+
+		if strings.Contains(folderNameLower, queryLower) ||
+			strings.Contains(germanLower, queryLower) ||
+			strings.Contains(polishLower, queryLower) {
+			score += 1.0
+		}
+
+		if score > 0 {
+			matches = append(matches, matchInfo{folder: f, score: score})
+		}
+	}
+
+	// Sort matches by score, then folder name
+	sort.SliceStable(matches, func(i, j int) bool {
+		if matches[i].score != matches[j].score {
+			return matches[i].score > matches[j].score
+		}
+		return strings.ToLower(matches[i].folder.FolderName) < strings.ToLower(matches[j].folder.FolderName)
+	})
+
+	// Limit to top 3 matches
+	if len(matches) > 3 {
+		matches = matches[:3]
+	}
+
+	// Query already added photos to filter duplicates
+	existingPhotos, err := s.db.ListPhotosByService(ctx, id)
+	addedPaths := make(map[string]bool)
+	if err == nil {
+		for _, p := range existingPhotos {
+			if p.Status != "rejected" {
+				addedPaths[p.FilePath] = true
+			}
+		}
+	}
+
+	type folderMatch struct {
+		Folder *storage.GalleryFolder
+		Score  float64
+		Photos []string
+	}
+
+	var results []folderMatch
+	for _, m := range matches {
+		photos, err := s.galleryService.ListPhotosInFolder(m.folder.FolderPath)
+		if err != nil {
+			log.Printf("Failed to list photos in manual search folder %s: %v", m.folder.FolderName, err)
+			continue
+		}
+		var filteredPhotos []string
+		for _, p := range photos {
+			if !addedPaths[p] {
+				filteredPhotos = append(filteredPhotos, p)
+			}
+		}
+		// limit previews in folder to 6
+		if len(filteredPhotos) > 6 {
+			filteredPhotos = filteredPhotos[:6]
+		}
+		results = append(results, folderMatch{
+			Folder: m.folder,
+			Score:  m.score,
+			Photos: filteredPhotos,
+		})
+	}
+
+	if len(results) == 0 {
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte(`<p class="text-sm text-rose-400 col-span-2">Nie znaleziono żadnych folderów w galerii pasujących do frazy.</p>`))
+		return
+	}
+
+	data := map[string]interface{}{
+		"ServiceID: ": id,
+		"ServiceID":   id,
+		"IsFallback":  false,
 		"Matches":     results,
 		"RequiredCount": s.cfg.TargetPhotosPerService,
 	}
