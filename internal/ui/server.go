@@ -420,11 +420,22 @@ func (s *Server) handleStockSearch(w http.ResponseWriter, r *http.Request) {
 
 	term := r.FormValue("term")
 	if term == "" {
+		term = r.URL.Query().Get("term")
+	}
+	if term == "" {
 		http.Error(w, "Query term is required", http.StatusBadRequest)
 		return
 	}
 
-	photos, err := s.envatoClient.SearchPhotos(ctx, term, 1, 10)
+	pageStr := r.URL.Query().Get("page")
+	page := 1
+	if pageStr != "" {
+		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
+			page = p
+		}
+	}
+
+	photos, err := s.envatoClient.SearchPhotos(ctx, term, page, 10)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Stock search failed: %v", err), http.StatusInternalServerError)
 		return
@@ -449,10 +460,13 @@ func (s *Server) handleStockSearch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := map[string]interface{}{
-		"ServiceID: ": id,
-		"ServiceID":   id,
-		"Photos":      filteredPhotos,
+		"ServiceID: ":   id,
+		"ServiceID":     id,
+		"Photos":        filteredPhotos,
 		"RequiredCount": s.cfg.TargetPhotosPerService,
+		"Page":          page,
+		"NextPage":      page + 1,
+		"Term":          term,
 	}
 
 	err = s.tmpl.ExecuteTemplate(w, "stock_results.html", data)
