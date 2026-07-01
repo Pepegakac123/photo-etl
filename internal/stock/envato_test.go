@@ -27,14 +27,14 @@ func TestEnvatoSearch(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		// Realistic mock Envato search JSON
 		responseJSON := `{
-			"matches": 1,
-			"items": [
+			"total_hits": 1,
+			"matches": [
 				{
 					"id": "11223344",
 					"name": "Modern Bathroom Renovation",
 					"previews": {
-						"icon_with_landscape_preview": {
-							"landscape_url": "https://previews.envato.com/fake-preview.jpg"
+						"thumbnail_preview": {
+							"large_url": "https://previews.envato.com/fake-preview.jpg"
 						}
 					}
 				}

@@ -66,15 +66,15 @@ func (c *EnvatoClient) TestConnection(ctx context.Context) error {
 }
 
 type envatoSearchResponse struct {
-	Items []struct {
+	Matches []struct {
 		ID       interface{} `json:"id"` // can be float64 or string in JSON
 		Name     string      `json:"name"`
 		Previews struct {
-			IconWithLandscapePreview struct {
-				LandscapeURL string `json:"landscape_url"`
-			} `json:"icon_with_landscape_preview"`
+			ThumbnailPreview struct {
+				LargeURL string `json:"large_url"`
+			} `json:"thumbnail_preview"`
 		} `json:"previews"`
-	} `json:"items"`
+	} `json:"matches"`
 }
 
 func (c *EnvatoClient) SearchPhotos(ctx context.Context, term string, page, pageSize int) ([]*EnvatoPhoto, error) {
@@ -114,7 +114,7 @@ func (c *EnvatoClient) SearchPhotos(ctx context.Context, term string, page, page
 	}
 
 	var photos []*EnvatoPhoto
-	for _, item := range res.Items {
+	for _, item := range res.Matches {
 		// Convert ID to string
 		var itemID string
 		switch v := item.ID.(type) {
@@ -126,7 +126,7 @@ func (c *EnvatoClient) SearchPhotos(ctx context.Context, term string, page, page
 			itemID = fmt.Sprintf("%v", v)
 		}
 
-		preview := item.Previews.IconWithLandscapePreview.LandscapeURL
+		preview := item.Previews.ThumbnailPreview.LargeURL
 		if preview == "" {
 			continue // skip items without previews
 		}
