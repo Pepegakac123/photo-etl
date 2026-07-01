@@ -22,10 +22,12 @@
     <div id="stock-load-more-container" hx-swap-oob="true" class="flex justify-center py-4 w-full col-span-2">
         <button hx-post="/services/{{ .ServiceID }}/stock/search?page={{ .NextPage }}&term={{ urlEscape .Term }}"
                 hx-target="#stock-results"
-                hx-select="#stock-results > *"
                 hx-swap="beforeend"
                 hx-indicator="#stock-load-more-indicator"
                 class="px-5 py-2.5 bg-[#1C2638] hover:bg-[#25324A] text-gray-300 hover:text-white text-xs font-bold rounded-lg transition flex items-center gap-2 font-sans shadow-md border border-[#23314B]">
+            <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 13l-7 7-7-7m14-6l-7 7-7-7"></path>
+            </svg>
             <span>Załaduj więcej zdjęć</span>
             <svg id="stock-load-more-indicator" class="animate-spin h-3.5 w-3.5 text-white htmx-indicator" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
