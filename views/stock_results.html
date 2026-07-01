@@ -7,7 +7,7 @@
         <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/35 to-transparent p-3 flex flex-col justify-between opacity-0 group-hover:opacity-100 transition duration-150">
             <span class="text-[10px] text-gray-200 font-bold truncate">{{ .Title }}</span>
             <button hx-post="/photos/add?service_id={{ $.ServiceID }}&path={{ urlEscape .PreviewURL }}&source=Stock&title={{ urlEscape .Title }}" 
-                    hx-target="#workspace-container"
+                    hx-target="#project-photos-container"
                     class="w-full py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold text-center mt-2 transition shadow">
                 Dodaj do projektu
             </button>

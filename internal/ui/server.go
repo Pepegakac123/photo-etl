@@ -212,6 +212,99 @@ func (s *Server) handleWorkspace(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (s *Server) getSingleServiceProgress(ctx context.Context, serviceID int64) (*serviceProgressView, error) {
+	sidebarData, err := s.getSidebarData(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, p := range sidebarData {
+		if p.ServiceID == serviceID {
+			return p, nil
+		}
+	}
+	svc, err := s.db.GetService(ctx, serviceID)
+	if err != nil {
+		return nil, err
+	}
+	return &serviceProgressView{
+		ServiceID:     serviceID,
+		ServiceName:   svc.Name,
+		ApprovedCount: 0,
+		RequiredCount: s.cfg.TargetPhotosPerService,
+		PendingCount:  0,
+	}, nil
+}
+
+func (s *Server) handleWorkspaceUpdate(w http.ResponseWriter, r *http.Request, serviceID int64) {
+	ctx := r.Context()
+	svc, err := s.db.GetService(ctx, serviceID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Service not found: %v", err), http.StatusNotFound)
+		return
+	}
+
+	photos, err := s.db.ListPhotosByService(ctx, serviceID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to list photos: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	var activePhotos []*storage.Photo
+	var approvedCount int
+	var pendingCount int
+	for _, p := range photos {
+		if p.Status != "rejected" {
+			activePhotos = append(activePhotos, p)
+			if p.Status == "approved" {
+				approvedCount++
+			} else if p.Status == "pending" {
+				pendingCount++
+			}
+		}
+	}
+
+	data := map[string]interface{}{
+		"Service":       svc,
+		"Photos":        activePhotos,
+		"ApprovedCount": approvedCount,
+		"RequiredCount": s.cfg.TargetPhotosPerService,
+		"PendingCount":  pendingCount,
+	}
+
+	w.Header().Set("Content-Type", "text/html")
+
+	// 1. Render the main project_photos list
+	err = s.tmpl.ExecuteTemplate(w, "project_photos", data)
+	if err != nil {
+		log.Printf("Template project_photos render error: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// 2. Render the OOB workspace status badge
+	err = s.tmpl.ExecuteTemplate(w, "workspace_badge_oob", data)
+	if err != nil {
+		log.Printf("Template workspace_badge_oob render error: %v", err)
+	}
+
+	// 3. Render the OOB sidebar button progress update
+	progress, err := s.getSingleServiceProgress(ctx, serviceID)
+	if err == nil {
+		type sidebarButtonOob struct {
+			*serviceProgressView
+			Oob bool
+		}
+		btnData := sidebarButtonOob{
+			serviceProgressView: progress,
+			Oob:                 true,
+		}
+		err = s.tmpl.ExecuteTemplate(w, "sidebar_button", btnData)
+		if err != nil {
+			log.Printf("Template sidebar_button render error: %v", err)
+		}
+	}
+}
+
 func (s *Server) handleGallerySearch(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	idStr := r.PathValue("id")
@@ -388,9 +481,7 @@ func (s *Server) handleApprovePhoto(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Re-render workspace (includes OOB counter updates)
-	r.SetPathValue("id", strconv.FormatInt(photo.ServiceID, 10))
-	s.handleWorkspace(w, r)
+	s.handleWorkspaceUpdate(w, r, photo.ServiceID)
 }
 
 func (s *Server) handleRejectPhoto(w http.ResponseWriter, r *http.Request) {
@@ -417,9 +508,7 @@ func (s *Server) handleRejectPhoto(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Re-render workspace (includes OOB counter updates)
-	r.SetPathValue("id", strconv.FormatInt(photo.ServiceID, 10))
-	s.handleWorkspace(w, r)
+	s.handleWorkspaceUpdate(w, r, photo.ServiceID)
 }
 
 func (s *Server) handleAddPhoto(w http.ResponseWriter, r *http.Request) {
@@ -483,9 +572,7 @@ func (s *Server) handleAddPhoto(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Re-render workspace (includes OOB counter updates)
-	r.SetPathValue("id", strconv.FormatInt(serviceID, 10))
-	s.handleWorkspace(w, r)
+	s.handleWorkspaceUpdate(w, r, serviceID)
 }
 
 func (s *Server) handleLocalMedia(w http.ResponseWriter, r *http.Request) {

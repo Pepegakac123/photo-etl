@@ -8,7 +8,7 @@
     <div class="aspect-video relative group rounded-xl overflow-hidden border border-[#23314B] bg-black w-full max-w-sm glow">
         <img src="/local-media?path={{ urlEscape .FilePath }}" alt="Generated Image" class="object-cover w-full h-full">
         <button hx-post="/photos/add?service_id={{ .ServiceID }}&path={{ urlEscape .FilePath }}&source=AI" 
-                hx-target="#workspace-container"
+                hx-target="#project-photos-container"
                 class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition duration-150 flex items-center justify-center text-white text-xs font-bold">
             Zaakceptuj i dodaj
         </button>

@@ -24,55 +24,8 @@
     <!-- Main Content Split -->
     <div class="flex-1 min-h-0 flex gap-8">
         <!-- Left: Current Approved/Pending Photos (40%) -->
-        <div class="w-[45%] flex flex-col min-h-0 glass rounded-2xl p-6">
-            <h3 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4 shrink-0">
-                Zdjęcia w Projekcie
-            </h3>
-            
-            <div class="flex-1 overflow-y-auto space-y-4 pr-1">
-                {{ if not .Photos }}
-                <div class="h-48 border border-dashed border-[#23314B] rounded-xl flex flex-col items-center justify-center text-center p-4">
-                    <p class="text-sm text-gray-500">Brak zdjęć przypisanych do tej usługi.</p>
-                </div>
-                {{ else }}
-                <div class="grid grid-cols-2 gap-4">
-                    {{ range .Photos }}
-                    <div id="photo-card-{{ .ID }}" class="relative group rounded-xl overflow-hidden border border-[#23314B] bg-[#0E1524] flex flex-col glow">
-                        <div class="aspect-video w-full relative bg-black overflow-hidden">
-                            <img src="/local-media?path={{ urlEscape .FilePath }}" alt="Photo" class="object-cover w-full h-full">
-                            <!-- Source Badge -->
-                            <span class="absolute top-2 left-2 px-2 py-0.5 text-[10px] font-bold rounded bg-black/60 backdrop-blur-sm text-indigo-300 border border-indigo-500/20">
-                                {{ .Source }}
-                            </span>
-                            <!-- Status Badge -->
-                            <span class="absolute top-2 right-2 px-2 py-0.5 text-[10px] font-bold rounded backdrop-blur-sm {{ if eq .Status "approved" }} bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 {{ else }} bg-amber-500/20 text-amber-400 border border-amber-500/30 {{ end }}">
-                                {{ .Status }}
-                            </span>
-                        </div>
-                        <div class="p-3 flex items-center justify-between gap-2 bg-[#0E1524] mt-auto">
-                            <div class="min-w-0 flex-1">
-                                <p class="text-[10px] text-gray-400 truncate" title="{{ .FilePath }}">{{ baseName .FilePath }}</p>
-                            </div>
-                            <div class="flex gap-1 shrink-0">
-                                {{ if eq .Status "pending" }}
-                                <button hx-post="/photos/{{ .ID }}/approve" 
-                                        hx-target="#workspace-container"
-                                        class="p-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition">
-                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                                </button>
-                                {{ end }}
-                                <button hx-post="/photos/{{ .ID }}/reject" 
-                                        hx-target="#workspace-container"
-                                        class="p-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg transition">
-                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    {{ end }}
-                </div>
-                {{ end }}
-            </div>
+        <div id="project-photos-container" class="w-[45%] flex flex-col min-h-0 glass rounded-2xl p-6">
+            {{ template "project_photos" . }}
         </div>
 
         <!-- Right: Search Proposers & AI Generator (55%) -->
@@ -185,9 +138,61 @@
         activeBtn.classList.add('text-indigo-400', 'border-b-2', 'border-indigo-500');
     }
 </script>
+{{ end }}
 
-<!-- OUT OF BOUNDS COUNTER AND BADGE UPDATE -->
-<span id="counter-{{ .Service.ID }}" hx-swap-oob="true" class="px-2 py-1 rounded-lg text-xs font-bold font-mono tracking-wider {{ if ge .ApprovedCount .RequiredCount }} bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 {{ else }} bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 {{ end }}">
-    {{ .ApprovedCount }} / {{ .RequiredCount }}
+{{ define "project_photos" }}
+<h3 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4 shrink-0">
+    Zdjęcia w Projekcie
+</h3>
+
+<div class="flex-1 overflow-y-auto space-y-4 pr-1">
+    {{ if not .Photos }}
+    <div class="h-48 border border-dashed border-[#23314B] rounded-xl flex flex-col items-center justify-center text-center p-4">
+        <p class="text-sm text-gray-500">Brak zdjęć przypisanych do tej usługi.</p>
+    </div>
+    {{ else }}
+    <div class="grid grid-cols-2 gap-4">
+        {{ range .Photos }}
+        <div id="photo-card-{{ .ID }}" class="relative group rounded-xl overflow-hidden border border-[#23314B] bg-[#0E1524] flex flex-col glow">
+            <div class="aspect-video w-full relative bg-black overflow-hidden">
+                <img src="/local-media?path={{ urlEscape .FilePath }}" alt="Photo" class="object-cover w-full h-full">
+                <!-- Source Badge -->
+                <span class="absolute top-2 left-2 px-2 py-0.5 text-[10px] font-bold rounded bg-black/60 backdrop-blur-sm text-indigo-300 border border-indigo-500/20">
+                    {{ .Source }}
+                </span>
+                <!-- Status Badge -->
+                <span class="absolute top-2 right-2 px-2 py-0.5 text-[10px] font-bold rounded backdrop-blur-sm {{ if eq .Status "approved" }} bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 {{ else }} bg-amber-500/20 text-amber-400 border border-amber-500/30 {{ end }}">
+                    {{ .Status }}
+                </span>
+            </div>
+            <div class="p-3 flex items-center justify-between gap-2 bg-[#0E1524] mt-auto">
+                <div class="min-w-0 flex-1">
+                    <p class="text-[10px] text-gray-400 truncate" title="{{ .FilePath }}">{{ baseName .FilePath }}</p>
+                </div>
+                <div class="flex gap-1 shrink-0">
+                    {{ if eq .Status "pending" }}
+                    <button hx-post="/photos/{{ .ID }}/approve" 
+                            hx-target="#project-photos-container"
+                            class="p-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                    </button>
+                    {{ end }}
+                    <button hx-post="/photos/{{ .ID }}/reject" 
+                            hx-target="#project-photos-container"
+                            class="p-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg transition">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+        {{ end }}
+    </div>
+    {{ end }}
+</div>
+{{ end }}
+
+{{ define "workspace_badge_oob" }}
+<span id="workspace-badge-{{ .Service.ID }}" hx-swap-oob="true" class="px-2.5 py-1 text-xs font-bold rounded-full {{ if ge .ApprovedCount .RequiredCount }} bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 {{ else }} bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 {{ end }}">
+    Status: {{ .ApprovedCount }} / {{ .RequiredCount }} Zaakceptowane
 </span>
 {{ end }}
