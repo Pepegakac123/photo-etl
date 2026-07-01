@@ -1,0 +1,78 @@
+<div class="space-y-6 animate-fadeIn min-h-0 flex flex-col h-full">
+    <!-- Header -->
+    <div class="flex items-center justify-between border-b border-[#23314B] pb-4 shrink-0">
+        <div>
+            <h1 class="text-xl font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                <svg class="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                </svg>
+                Zdjęcia Klienta (Niedopasowane & Odrzucone)
+            </h1>
+            <p class="text-xs text-gray-400 mt-1">
+                Lista zdjęć z WhatsAppa / zrzutów ekranu, które nie zostały przypisane do żadnej usługi lub zostały odrzucone we wszystkich powiązanych usługach.
+            </p>
+        </div>
+        <span class="px-3 py-1 bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-extrabold rounded-full font-mono">
+            {{ len .Photos }} zdjęć
+        </span>
+    </div>
+
+    <!-- Photos Grid -->
+    <div class="flex-1 overflow-y-auto min-h-0 pr-1">
+        {{ if not .Photos }}
+        <div class="h-full flex flex-col items-center justify-center text-center p-8">
+            <div class="w-16 h-16 bg-emerald-600/10 border border-emerald-500/20 rounded-full flex items-center justify-center mb-4 glow">
+                <svg class="w-8 h-8 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+            </div>
+            <h3 class="text-sm font-bold text-white">Wszystkie zdjęcia zagospodarowane!</h3>
+            <p class="text-xs text-gray-400 max-w-xs mt-1">Nie ma żadnych niedopasowanych ani odrzuconych zdjęć klienta.</p>
+        </div>
+        {{ else }}
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 pb-8">
+            {{ range .Photos }}
+            <div class="glass border border-[#23314B] rounded-2xl overflow-hidden flex flex-col shadow-lg transition duration-200 hover:border-indigo-500/50 hover:shadow-indigo-500/5 group h-[320px]">
+                
+                <!-- Photo Thumbnail -->
+                <div class="h-44 bg-black/40 relative overflow-hidden shrink-0 border-b border-[#23314B] flex items-center justify-center">
+                    <img src="/local-media?path={{ .AbsolutePath }}" 
+                         alt="{{ .Filename }}"
+                         class="w-full h-full object-cover transition duration-300 group-hover:scale-105"
+                         loading="lazy">
+                </div>
+
+                <!-- Info and Matching Form -->
+                <div class="p-3.5 flex-1 flex flex-col justify-between min-h-0">
+                    <div class="min-w-0 mb-2">
+                        <p class="text-[10px] text-gray-500 font-mono truncate" title="{{ .AbsolutePath }}">
+                            {{ .Filename }}
+                        </p>
+                    </div>
+
+                    <form hx-post="/photos/manual-match" hx-swap="none" class="mt-auto">
+                        <input type="hidden" name="path" value="{{ .AbsolutePath }}">
+                        <div class="space-y-2">
+                            <select name="service_id" required
+                                    class="w-full bg-[#0E1524] border border-[#23314B] hover:border-[#3A4E72] rounded-lg px-2.5 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-indigo-500 transition font-sans cursor-pointer">
+                                <option value="" disabled selected>Wybierz usługę...</option>
+                                {{ range $.Services }}
+                                <option value="{{ .ID }}">{{ .Name }}</option>
+                                {{ end }}
+                            </select>
+                            <button type="submit" 
+                                    class="w-full py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold rounded-lg transition duration-200 active:scale-[0.98] shadow-md flex items-center justify-center gap-1.5">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                                </svg>
+                                <span>Przypisz ręcznie</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            {{ end }}
+        </div>
+        {{ end }}
+    </div>
+</div>

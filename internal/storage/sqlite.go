@@ -356,14 +356,48 @@ func (d *DB) ClearCosts(ctx context.Context) error {
 	return nil
 }
 
-// PhotoExists checks if a photo with the given filePath is already registered.
-func (d *DB) PhotoExists(ctx context.Context, filePath string) (bool, error) {
+// PhotoExistsForService checks if a photo with the given filePath is already registered under the service.
+func (d *DB) PhotoExistsForService(ctx context.Context, serviceID int64, filePath string) (bool, error) {
 	var count int
-	err := d.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM photos WHERE file_path = ?", filePath).Scan(&count)
+	err := d.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM photos WHERE service_id = ? AND file_path = ?", serviceID, filePath).Scan(&count)
 	if err != nil {
 		return false, err
 	}
 	return count > 0, nil
+}
+
+// GetActivePhotoPaths returns all file paths of photos that are approved or pending in DB.
+func (d *DB) GetActivePhotoPaths(ctx context.Context) (map[string]bool, error) {
+	rows, err := d.db.QueryContext(ctx, "SELECT file_path FROM photos WHERE status IN ('approved', 'pending')")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	paths := make(map[string]bool)
+	for rows.Next() {
+		var path string
+		if err := rows.Scan(&path); err == nil {
+			paths[path] = true
+		}
+	}
+	return paths, nil
+}
+
+// AddOrApprovePhoto inserts a photo or updates its status to 'approved' if it was rejected.
+func (d *DB) AddOrApprovePhoto(ctx context.Context, serviceID int64, filePath string, source string) error {
+	var id int64
+	var status string
+	err := d.db.QueryRowContext(ctx, "SELECT id, status FROM photos WHERE service_id = ? AND file_path = ?", serviceID, filePath).Scan(&id, &status)
+	if err == nil {
+		// Record exists, update status to approved
+		_, err = d.db.ExecContext(ctx, "UPDATE photos SET status = 'approved' WHERE id = ?", id)
+		return err
+	}
+
+	// Record does not exist, insert new
+	_, err = d.db.ExecContext(ctx, "INSERT INTO photos (service_id, file_path, source, status) VALUES (?, ?, ?, 'approved')", serviceID, filePath, source)
+	return err
 }
 
 

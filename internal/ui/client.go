@@ -226,7 +226,7 @@ func (s *Server) handleSortScreenshotsStream(w http.ResponseWriter, r *http.Requ
 		filePath := filepath.Join(screenshotsFolder, filename)
 		sendProgress(progressPct, fmt.Sprintf("Klasyfikowanie obrazu %d/%d: %s...", idx+1, len(imageFiles), filename))
 
-		category, promptTokens, completionTokens, err := visionClient.ClassifyImage(ctx, filePath, categories)
+		matchedCategories, promptTokens, completionTokens, err := visionClient.ClassifyImage(ctx, filePath, categories)
 		if err != nil {
 			sendLog(fmt.Sprintf("  [ERR] Błąd klasyfikacji dla %s: %v", filename, err))
 			continue
@@ -236,29 +236,30 @@ func (s *Server) handleSortScreenshotsStream(w http.ResponseWriter, r *http.Requ
 		cost := calculateOpenAICost(s.cfg.AiVisionModel, promptTokens, completionTokens)
 		_ = s.db.LogCost(ctx, "Vision Sorting (Manual)", s.cfg.AiVisionModel, s.cfg.AiVisionModel, promptTokens, completionTokens, cost)
 
-		if category == "REJECT" {
-			sendLog(fmt.Sprintf("  [OK] Zdjęcie %s odrzucone przez AI (nieprzydatne / śmieci).", filename))
+		if len(matchedCategories) == 0 {
+			sendLog(fmt.Sprintf("  [OK] Zdjęcie %s odrzucone przez AI (nieprzydatne / niska pewność).", filename))
 			continue
 		}
 
-		serviceID, ok := serviceMap[category]
-		if !ok {
-			sendLog(fmt.Sprintf("  [ERR] AI dopasowało do nieznanej kategorii %q dla %s.", category, filename))
-			continue
-		}
+		for _, cat := range matchedCategories {
+			serviceID, ok := serviceMap[cat]
+			if !ok {
+				continue
+			}
 
-		// Check if photo is already classified
-		exists, _ := s.db.PhotoExists(ctx, filePath)
-		if exists {
-			sendLog(fmt.Sprintf("  [OK] Zdjęcie %s było już wcześniej sklasyfikowane. Pomijam.", filename))
-			continue
-		}
+			// Check if photo is already classified for this service
+			exists, _ := s.db.PhotoExistsForService(ctx, serviceID, filePath)
+			if exists {
+				sendLog(fmt.Sprintf("  [OK] Zdjęcie %s było już dopasowane do %s. Pomijam.", filename, cat))
+				continue
+			}
 
-		_, err = s.db.CreatePhoto(ctx, serviceID, filePath, "Client", "pending")
-		if err != nil {
-			sendLog(fmt.Sprintf("  [ERR] Błąd zapisu w bazie dla %s: %v", filename, err))
-		} else {
-			sendLog(fmt.Sprintf("  [OK] Zdjęcie %s dopasowane do usługi: %s.", filename, category))
+			_, err = s.db.CreatePhoto(ctx, serviceID, filePath, "Client", "pending")
+			if err != nil {
+				sendLog(fmt.Sprintf("  [ERR] Błąd zapisu dla %s w usłudze %s: %v", filename, cat, err))
+			} else {
+				sendLog(fmt.Sprintf("  [OK] Zdjęcie %s dopasowane do usługi: %s.", filename, cat))
+			}
 		}
 	}
 

@@ -16,6 +16,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"sort"
 	"strings"
 	"sync"
 
@@ -103,6 +104,8 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("POST /client/select", s.handleClientSelect)
 	s.mux.HandleFunc("GET /client/sort-screenshots/stream", s.handleSortScreenshotsStream)
 	s.mux.HandleFunc("GET /client/change", s.handleClientChange)
+	s.mux.HandleFunc("GET /client/unmatched-photos", s.handleUnmatchedPhotos)
+	s.mux.HandleFunc("POST /photos/manual-match", s.handleManualMatch)
 	s.mux.HandleFunc("POST /settings/save", s.handleSettingsSave)
 }
 
@@ -146,6 +149,15 @@ func (s *Server) getSidebarData(ctx context.Context) ([]*serviceProgressView, er
 			PendingCount:  p.PendingCount,
 		})
 	}
+	sort.SliceStable(data, func(i, j int) bool {
+		if data[i].PendingCount > 0 && data[j].PendingCount == 0 {
+			return true
+		}
+		if data[i].PendingCount == 0 && data[j].PendingCount > 0 {
+			return false
+		}
+		return strings.ToLower(data[i].ServiceName) < strings.ToLower(data[j].ServiceName)
+	})
 	return data, nil
 }
 
@@ -158,20 +170,158 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 
 	clientName := ""
+	var unmatchedCount int
 	if s.clientDir != "" {
 		clientName = filepath.Base(s.clientDir)
+		unmatchedList, _ := s.getUnmatchedPhotosList(ctx)
+		unmatchedCount = len(unmatchedList)
 	}
 
 	data := map[string]interface{}{
-		"Services":   sidebarData,
-		"ClientDir":  s.clientDir,
-		"ClientName": clientName,
+		"Services":       sidebarData,
+		"ClientDir":      s.clientDir,
+		"ClientName":     clientName,
+		"UnmatchedCount": unmatchedCount,
 	}
 
 	err = s.tmpl.ExecuteTemplate(w, "layout.html", data)
 	if err != nil {
 		log.Printf("Template rendering error: %v", err)
 	}
+}
+
+func (s *Server) getUnmatchedPhotosList(ctx context.Context) ([]string, error) {
+	if s.clientDir == "" || s.db == nil {
+		return nil, nil
+	}
+
+	// Detect screenshots folder
+	var screenshotsFolder string
+	entries, err := os.ReadDir(s.clientDir)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			nameLower := strings.ToLower(entry.Name())
+			if strings.Contains(nameLower, "whatsapp") || strings.Contains(nameLower, "zrzuty") {
+				screenshotsFolder = filepath.Join(s.clientDir, entry.Name())
+				break
+			}
+		}
+	}
+
+	if screenshotsFolder == "" {
+		return nil, nil
+	}
+
+	files, err := os.ReadDir(screenshotsFolder)
+	if err != nil {
+		return nil, err
+	}
+
+	activePaths, err := s.db.GetActivePhotoPaths(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var unmatched []string
+	for _, file := range files {
+		if !file.IsDir() && scanIsImage(file.Name()) {
+			fullPath := filepath.Join(screenshotsFolder, file.Name())
+			if !activePaths[fullPath] {
+				unmatched = append(unmatched, fullPath)
+			}
+		}
+	}
+
+	return unmatched, nil
+}
+
+func (s *Server) handleUnmatchedPhotos(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	photos, err := s.getUnmatchedPhotosList(ctx)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Błąd wczytywania zdjęć: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	services, err := s.db.ListServices(ctx)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Błąd wczytywania usług: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Convert absolute paths to objects containing display details
+	type viewPhoto struct {
+		AbsolutePath string
+		Filename     string
+	}
+	var viewPhotos []viewPhoto
+	for _, p := range photos {
+		viewPhotos = append(viewPhotos, viewPhoto{
+			AbsolutePath: p,
+			Filename:     filepath.Base(p),
+		})
+	}
+
+	data := map[string]interface{}{
+		"Photos":   viewPhotos,
+		"Services": services,
+	}
+
+	err = s.tmpl.ExecuteTemplate(w, "unmatched_photos.html", data)
+	if err != nil {
+		log.Printf("Template unmatched_photos render error: %v", err)
+	}
+}
+
+func (s *Server) handleManualMatch(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	serviceIDStr := r.FormValue("service_id")
+	filePath := r.FormValue("path")
+
+	serviceID, err := strconv.ParseInt(serviceIDStr, 10, 64)
+	if err != nil || filePath == "" {
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte(`<script>showToast("Nieprawidłowe parametry dopasowania.", "error");</script>`))
+		return
+	}
+
+	svc, err := s.db.GetService(ctx, serviceID)
+	if err != nil {
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte(`<script>showToast("Nie znaleziono wybranej usługi.", "error");</script>`))
+		return
+	}
+
+	// Check limit
+	photos, err := s.db.ListPhotosByService(ctx, serviceID)
+	if err == nil {
+		var activeCount int
+		for _, p := range photos {
+			if p.Status != "rejected" {
+				activeCount++
+			}
+		}
+		if activeCount >= s.cfg.TargetPhotosPerService {
+			w.Header().Set("Content-Type", "text/html")
+			w.Write([]byte(fmt.Sprintf(`<script>showToast("Usługa %s ma już komplet zatwierdzonych zdjęć (%d/%d).", "error");</script>`, svc.Name, activeCount, s.cfg.TargetPhotosPerService)))
+			return
+		}
+	}
+
+	// Match the photo
+	err = s.db.AddOrApprovePhoto(ctx, serviceID, filePath, "Client")
+	if err != nil {
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte(fmt.Sprintf(`<script>showToast("Błąd zapisu dopasowania: %v", "error");</script>`, err)))
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html")
+	w.Write([]byte(fmt.Sprintf(`<script>showToast("Zdjęcie dopasowane pomyślnie do usługi: %s", "success"); setTimeout(() => { window.location.reload(); }, 1000);</script>`, svc.Name)))
 }
 
 func (s *Server) handleWorkspace(w http.ResponseWriter, r *http.Request) {
