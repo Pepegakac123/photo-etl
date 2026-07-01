@@ -222,7 +222,7 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 
 	configData, err := yaml.Marshal(s.cfg)
 	if err == nil {
-		_ = os.WriteFile("config.yaml", configData, 0644)
+		_ = os.WriteFile(s.configPath, configData, 0644)
 	}
 
 	w.Header().Set("Content-Type", "text/html")

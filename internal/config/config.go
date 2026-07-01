@@ -3,10 +3,23 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 
 	"gopkg.in/yaml.v3"
 )
+
+// GetDefaultConfigPath returns the cross-platform default config file path in the user's home directory.
+func GetDefaultConfigPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "config.yaml", nil // fallback to local directory
+	}
+
+	configDir := filepath.Join(home, ".config", "photo-etl")
+	_ = os.MkdirAll(configDir, 0755)
+	return filepath.Join(configDir, "config.yaml"), nil
+}
 
 type Config struct {
 	TargetPhotosPerService    int    `yaml:"target_photos_per_service"`

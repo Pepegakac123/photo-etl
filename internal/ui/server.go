@@ -24,6 +24,7 @@ import (
 type Server struct {
 	db             *storage.DB
 	cfg            *config.Config
+	configPath     string
 	galleryService *gallery.Service
 	bananaClient   *generator.BananaClient
 	envatoClient   *stock.EnvatoClient
@@ -33,10 +34,11 @@ type Server struct {
 	mux            *http.ServeMux
 }
 
-func NewServer(db *storage.DB, cfg *config.Config, gs *gallery.Service, bc *generator.BananaClient, ec *stock.EnvatoClient, clientDir string) *Server {
+func NewServer(db *storage.DB, cfg *config.Config, configPath string, gs *gallery.Service, bc *generator.BananaClient, ec *stock.EnvatoClient, clientDir string) *Server {
 	s := &Server{
 		db:             db,
 		cfg:            cfg,
+		configPath:     configPath,
 		galleryService: gs,
 		bananaClient:   bc,
 		envatoClient:   ec,

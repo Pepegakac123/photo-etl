@@ -28,7 +28,8 @@ func (tw translateWrapper) Translate(ctx context.Context, text, fromLang, toLang
 }
 
 func main() {
-	configPath := flag.String("config", "config.yaml", "path to config file")
+	defaultConfig, _ := config.GetDefaultConfigPath()
+	configPath := flag.String("config", defaultConfig, "path to config file")
 	clientDir := flag.String("client", "", "path to client directory to process")
 	port := flag.Int("port", 8080, "port to run HTTP server on")
 	skipSorting := flag.Bool("skip-sorting", false, "skip AI vision classification of screenshots")
@@ -135,7 +136,7 @@ func main() {
 	envatoClient := stock.NewEnvatoClient(cfg.EnvatoApiToken)
 
 	// 6. Initialize and start Web Server
-	srv := ui.NewServer(db, cfg, galleryService, bananaClient, envatoClient, absClientDir)
+	srv := ui.NewServer(db, cfg, *configPath, galleryService, bananaClient, envatoClient, absClientDir)
 	
 	// Parse templates
 	if err := srv.ParseTemplates(); err != nil {

@@ -41,7 +41,7 @@ func TestWebServer(t *testing.T) {
 	}
 
 	// Initialize Server (passing nil for services we don't need for basic page loads)
-	srv := NewServer(db, cfg, nil, nil, nil, clientDir)
+	srv := NewServer(db, cfg, "", nil, nil, nil, clientDir)
 	
 	// We need to parse templates in the test. Let's make sure our templates are loaded from the relative path
 	// or we can test using mock templates, or we can mock/point the templates to the real views directory.
