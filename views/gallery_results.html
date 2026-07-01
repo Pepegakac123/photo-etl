@@ -29,7 +29,7 @@
                     <img src="/local-media?path={{ urlEscape . }}" alt="Gallery Image" class="object-cover w-full h-full group-hover:scale-105 transition duration-200">
                     <button hx-post="/photos/add?service_id={{ $.ServiceID }}&path={{ urlEscape . }}&source=LocalGallery" 
                             hx-target="#project-photos-container"
-                            onclick="this.closest('.relative').remove()"
+                            onclick="this.closest('.relative').style.display='none'"
                             class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition duration-150 flex items-center justify-center text-white text-xs font-bold font-sans">
                         Dodaj do projektu
                     </button>
