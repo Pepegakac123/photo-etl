@@ -47,6 +47,7 @@ func LoadConfig(path string) (*Config, error) {
 		TargetPhotosPerService: 5,
 		LocalGalleryPath:       "/home/kacper/GoogleDrive/overflow-praca/Galeria Zdjęć Usługowych",
 		ConcurrencyLimit:       5,
+		AiVisionModel:          "gpt-4o-mini",
 		VisionSortingPrompt:    "Jesteś ekspertem budowlanym. Przypisz zdjęcie do jednej z podanych kategorii. Jeśli zdjęcie nie pasuje do żadnej kategorii lub przedstawia śmieci, zwróć 'REJECT'.",
 		ImageGenerationBasePrompt: "Zdjęcie musi wyglądać jak zrobione amatorsko, telefonem komórkowym, naturalne oświetlenie na budowie. Złota zasada: brak widocznych twarzy, brak logotypów, brak napisów. Styl surowy i realistyczny.",
 	}
