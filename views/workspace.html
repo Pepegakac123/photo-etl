@@ -1,0 +1,193 @@
+{{ define "workspace" }}
+<div class="flex flex-col h-full gap-8">
+    <!-- Workspace Header -->
+    <div class="flex items-center justify-between border-b border-[#23314B] pb-6 shrink-0">
+        <div>
+            <div class="flex items-center gap-3 mb-1">
+                <h2 class="text-2xl font-extrabold text-white tracking-tight">
+                    {{ .Service.Name }}
+                </h2>
+                <span id="workspace-badge-{{ .Service.ID }}" class="px-2.5 py-1 text-xs font-bold rounded-full {{ if ge .ApprovedCount .RequiredCount }} bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 {{ else }} bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 {{ end }}">
+                    Status: {{ .ApprovedCount }} / {{ .RequiredCount }} Zaakceptowane
+                </span>
+            </div>
+            <p class="text-sm text-gray-400">
+                {{ if .Service.ContextDescription }}
+                    {{ .Service.ContextDescription }}
+                {{ else }}
+                    Brak opisu usługi. Użyj opcji w tle do wygenerowania opisu dla LLM.
+                {{ end }}
+            </p>
+        </div>
+    </div>
+
+    <!-- Main Content Split -->
+    <div class="flex-1 min-h-0 flex gap-8">
+        <!-- Left: Current Approved/Pending Photos (40%) -->
+        <div class="w-[45%] flex flex-col min-h-0 glass rounded-2xl p-6">
+            <h3 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4 shrink-0">
+                Zdjęcia w Projekcie
+            </h3>
+            
+            <div class="flex-1 overflow-y-auto space-y-4 pr-1">
+                {{ if not .Photos }}
+                <div class="h-48 border border-dashed border-[#23314B] rounded-xl flex flex-col items-center justify-center text-center p-4">
+                    <p class="text-sm text-gray-500">Brak zdjęć przypisanych do tej usługi.</p>
+                </div>
+                {{ else }}
+                <div class="grid grid-cols-2 gap-4">
+                    {{ range .Photos }}
+                    <div id="photo-card-{{ .ID }}" class="relative group rounded-xl overflow-hidden border border-[#23314B] bg-[#0E1524] flex flex-col glow">
+                        <div class="aspect-video w-full relative bg-black overflow-hidden">
+                            <img src="/local-media?path={{ urlEscape .FilePath }}" alt="Photo" class="object-cover w-full h-full">
+                            <!-- Source Badge -->
+                            <span class="absolute top-2 left-2 px-2 py-0.5 text-[10px] font-bold rounded bg-black/60 backdrop-blur-sm text-indigo-300 border border-indigo-500/20">
+                                {{ .Source }}
+                            </span>
+                            <!-- Status Badge -->
+                            <span class="absolute top-2 right-2 px-2 py-0.5 text-[10px] font-bold rounded backdrop-blur-sm {{ if eq .Status "approved" }} bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 {{ else }} bg-amber-500/20 text-amber-400 border border-amber-500/30 {{ end }}">
+                                {{ .Status }}
+                            </span>
+                        </div>
+                        <div class="p-3 flex items-center justify-between gap-2 bg-[#0E1524] mt-auto">
+                            <div class="min-w-0 flex-1">
+                                <p class="text-[10px] text-gray-400 truncate" title="{{ .FilePath }}">{{ baseName .FilePath }}</p>
+                            </div>
+                            <div class="flex gap-1 shrink-0">
+                                {{ if eq .Status "pending" }}
+                                <button hx-post="/photos/{{ .ID }}/approve" 
+                                        hx-target="#workspace-container"
+                                        class="p-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                </button>
+                                {{ end }}
+                                <button hx-post="/photos/{{ .ID }}/reject" 
+                                        hx-target="#workspace-container"
+                                        class="p-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg transition">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    {{ end }}
+                </div>
+                {{ end }}
+            </div>
+        </div>
+
+        <!-- Right: Search Proposers & AI Generator (55%) -->
+        <div class="w-[55%] flex flex-col min-h-0 glass rounded-2xl p-6">
+            <!-- Tabs Navigation -->
+            <div class="flex border-b border-[#23314B] mb-6 shrink-0 text-sm font-semibold">
+                <button onclick="switchTab('local-gallery')" id="tab-btn-local-gallery" class="flex-1 pb-3 text-indigo-400 border-b-2 border-indigo-500 transition duration-150 outline-none">
+                    Lokalna Galeria
+                </button>
+                <button onclick="switchTab('envato-stock')" id="tab-btn-envato-stock" class="flex-1 pb-3 text-gray-400 hover:text-gray-200 transition duration-150 outline-none">
+                    Envato Stock
+                </button>
+                <button onclick="switchTab('ai-gen')" id="tab-btn-ai-gen" class="flex-1 pb-3 text-gray-400 hover:text-gray-200 transition duration-150 outline-none">
+                    Generowanie AI (Imagen)
+                </button>
+            </div>
+
+            <!-- Tabs Content -->
+            <div class="flex-1 overflow-y-auto min-h-0 pr-1">
+                <!-- Tab: Local Gallery -->
+                <div id="tab-content-local-gallery" class="space-y-6">
+                    <div class="flex gap-2">
+                        <button hx-post="/services/{{ .Service.ID }}/gallery/search" 
+                                hx-target="#gallery-results"
+                                hx-indicator="#gallery-indicator"
+                                class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg shadow transition text-sm flex items-center gap-2">
+                            <span>Wyszukaj w lokalnej galerii</span>
+                            <svg id="gallery-indicator" class="animate-spin h-4 w-4 text-white htmx-indicator" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div id="gallery-results" class="grid grid-cols-2 gap-4">
+                        <p class="text-sm text-gray-500 col-span-2">Kliknij przycisk powyżej, aby znaleźć dopasowane foldery w prywatnej galerii zdjęć.</p>
+                    </div>
+                </div>
+
+                <!-- Tab: Envato Stock -->
+                <div id="tab-content-envato-stock" class="hidden space-y-6">
+                    <form hx-post="/services/{{ .Service.ID }}/stock/search" 
+                          hx-target="#stock-results"
+                          hx-indicator="#stock-indicator"
+                          class="flex gap-2">
+                        <input type="text" name="term" placeholder="Np. bathroom renovation" class="flex-1 bg-[#0E1524] border border-[#23314B] rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500 transition">
+                        <button type="submit" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg shadow transition text-sm flex items-center gap-2">
+                            <span>Szukaj</span>
+                            <svg id="stock-indicator" class="animate-spin h-4 w-4 text-white htmx-indicator" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                        </button>
+                    </form>
+
+                    <div id="stock-results" class="grid grid-cols-2 gap-4">
+                        <p class="text-sm text-gray-500 col-span-2">Wyszukaj zdjęcia stockowe w banku Envato.</p>
+                    </div>
+                </div>
+
+                <!-- Tab: AI Gen (Imagen) -->
+                <div id="tab-content-ai-gen" class="hidden space-y-6">
+                    <div class="p-4 bg-indigo-900/10 border border-indigo-500/20 rounded-xl space-y-3">
+                        <h4 class="text-xs font-bold text-indigo-400 uppercase tracking-wider">Generowanie Zdjęć z AI</h4>
+                        <p class="text-xs text-gray-400 font-medium">
+                            System wygeneruje fotorealistyczne, amatorskie zdjęcie pasujące do kontekstu usługi i kraju klienta. Złota zasada: brak twarzy, brak logotypów, styl surowy z budowy.
+                        </p>
+                        <button hx-post="/services/{{ .Service.ID }}/generate" 
+                                hx-target="#ai-gen-results"
+                                hx-indicator="#ai-indicator"
+                                class="w-full py-2.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-semibold rounded-lg shadow-md hover:shadow-indigo-500/20 transition duration-200 glow-hover text-sm flex items-center justify-center gap-2 font-semibold">
+                            <span>Wygeneruj Zdjęcie</span>
+                            <svg id="ai-indicator" class="animate-spin h-4 w-4 text-white htmx-indicator" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div id="ai-gen-results" class="grid grid-cols-2 gap-4">
+                        <p class="text-sm text-gray-500 col-span-2">Kliknij przycisk powyżej, aby wygenerować zdjęcie za pomocą modelu Imagen.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function switchTab(tabId) {
+        // Hide all tab contents
+        document.getElementById('tab-content-local-gallery').classList.add('hidden');
+        document.getElementById('tab-content-envato-stock').classList.add('hidden');
+        document.getElementById('tab-content-ai-gen').classList.add('hidden');
+
+        // Reset active tab button styles
+        const tabs = ['local-gallery', 'envato-stock', 'ai-gen'];
+        tabs.forEach(t => {
+            const btn = document.getElementById('tab-btn-' + t);
+            btn.classList.remove('text-indigo-400', 'border-b-2', 'border-indigo-500');
+            btn.classList.add('text-gray-400', 'hover:text-gray-200');
+        });
+
+        // Show selected tab content
+        document.getElementById('tab-content-' + tabId).classList.remove('hidden');
+
+        // Set active tab button style
+        const activeBtn = document.getElementById('tab-btn-' + tabId);
+        activeBtn.classList.remove('text-gray-400', 'hover:text-gray-200');
+        activeBtn.classList.add('text-indigo-400', 'border-b-2', 'border-indigo-500');
+    }
+</script>
+
+<!-- OUT OF BOUNDS COUNTER AND BADGE UPDATE -->
+<span id="counter-{{ .Service.ID }}" hx-swap-oob="true" class="px-2 py-1 rounded-lg text-xs font-bold font-mono tracking-wider {{ if ge .ApprovedCount .RequiredCount }} bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 {{ else }} bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 {{ end }}">
+    {{ .ApprovedCount }} / {{ .RequiredCount }}
+</span>
+{{ end }}

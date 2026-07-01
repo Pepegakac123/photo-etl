@@ -262,4 +262,16 @@ func (d *DB) ListGalleryFolders(ctx context.Context) ([]*GalleryFolder, error) {
 	return folders, nil
 }
 
+// GetPhoto retrieves a single photo by its ID.
+func (d *DB) GetPhoto(ctx context.Context, id int64) (*Photo, error) {
+	row := d.db.QueryRowContext(ctx, "SELECT id, service_id, file_path, source, status FROM photos WHERE id = ?", id)
+	var p Photo
+	err := row.Scan(&p.ID, &p.ServiceID, &p.FilePath, &p.Source, &p.Status)
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan photo %d: %w", id, err)
+	}
+	return &p, nil
+}
+
+
 

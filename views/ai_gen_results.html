@@ -1,0 +1,17 @@
+{{ if .Error }}
+<div class="col-span-2 p-4 bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-xl text-xs">
+    Błąd generowania: {{ .Error }}
+</div>
+{{ else }}
+<div class="col-span-2 border border-[#23314B] bg-[#0E1524]/60 rounded-xl p-4 space-y-3 flex flex-col items-center">
+    <h4 class="text-xs font-bold text-indigo-400 uppercase tracking-wider">Wygenerowana propozycja:</h4>
+    <div class="aspect-video relative group rounded-xl overflow-hidden border border-[#23314B] bg-black w-full max-w-sm glow">
+        <img src="/local-media?path={{ urlEscape .FilePath }}" alt="Generated Image" class="object-cover w-full h-full">
+        <button hx-post="/photos/add?service_id={{ .ServiceID }}&path={{ urlEscape .FilePath }}&source=AI" 
+                hx-target="#workspace-container"
+                class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition duration-150 flex items-center justify-center text-white text-xs font-bold">
+            Zaakceptuj i dodaj
+        </button>
+    </div>
+</div>
+{{ end }}

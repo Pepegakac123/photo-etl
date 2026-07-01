@@ -1,0 +1,41 @@
+{{ if .IsFallback }}
+<div class="col-span-2 p-3 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-lg text-xs flex items-center gap-2 mb-2">
+    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+    <span>Dopasowanie bezpośrednie było słabe. Użyto translatora: wyszukano w języku polskim.</span>
+</div>
+{{ end }}
+
+{{ if not .Matches }}
+<p class="text-sm text-gray-500 col-span-2">Nie znaleziono pasujących folderów w galerii.</p>
+{{ else }}
+    {{ range .Matches }}
+    <div class="col-span-2 border border-[#23314B] bg-[#0E1524]/60 rounded-xl p-4 space-y-3">
+        <div class="flex items-center justify-between">
+            <h4 class="text-sm font-bold text-white truncate max-w-[70%]" title="{{ .Folder.FolderName }}">
+                {{ .Folder.FolderName }}
+            </h4>
+            <span class="px-2 py-0.5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded text-[10px] font-semibold">
+                Dopasowanie: {{ printf "%.0f%%" (multiply .Score 100) }}
+            </span>
+        </div>
+        
+        <!-- Images in this matched folder -->
+        <div class="grid grid-cols-3 gap-2">
+            {{ if not .Photos }}
+            <p class="text-xs text-gray-500 col-span-3">Brak zdjęć w tym folderze.</p>
+            {{ else }}
+                {{ range .Photos }}
+                <div class="aspect-video relative group rounded-lg overflow-hidden border border-[#23314B] bg-black">
+                    <img src="/local-media?path={{ urlEscape . }}" alt="Gallery Image" class="object-cover w-full h-full group-hover:scale-105 transition duration-200">
+                    <button hx-post="/photos/add?service_id={{ $.ServiceID }}&path={{ urlEscape . }}&source=LocalGallery" 
+                            hx-target="#workspace-container"
+                            class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition duration-150 flex items-center justify-center text-white text-xs font-bold font-sans">
+                        Dodaj do projektu
+                    </button>
+                </div>
+                {{ end }}
+            {{ end }}
+        </div>
+    </div>
+    {{ end }}
+{{ end }}
