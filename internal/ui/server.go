@@ -494,6 +494,10 @@ func (s *Server) handleLocalMedia(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing path", http.StatusBadRequest)
 		return
 	}
+	// Decode double URL-encoded paths (e.g. %2F -> /)
+	if decoded, err := url.QueryUnescape(filePath); err == nil {
+		filePath = decoded
+	}
 	log.Printf("[LOCAL-MEDIA] Serving file path: %q", filePath)
 	if stat, err := os.Stat(filePath); err != nil {
 		log.Printf("[LOCAL-MEDIA] File stat error for %q: %v", filePath, err)
