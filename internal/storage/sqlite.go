@@ -46,10 +46,17 @@ func InitDB(dataSourceName string) (*DB, error) {
 		sqlDB.SetMaxOpenConns(1)
 	}
 
-	// Enable foreign key support
-	if _, err := sqlDB.Exec("PRAGMA foreign_keys = ON;"); err != nil {
-		sqlDB.Close()
-		return nil, fmt.Errorf("failed to enable foreign keys: %w", err)
+	// Enable foreign key support, WAL mode, and busy timeout
+	pragmas := []string{
+		"PRAGMA foreign_keys = ON;",
+		"PRAGMA journal_mode = WAL;",
+		"PRAGMA busy_timeout = 5000;",
+	}
+	for _, pragma := range pragmas {
+		if _, err := sqlDB.Exec(pragma); err != nil {
+			sqlDB.Close()
+			return nil, fmt.Errorf("failed to execute pragma %q: %w", pragma, err)
+		}
 	}
 
 	// Create tables
