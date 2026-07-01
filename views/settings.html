@@ -83,6 +83,50 @@
                     </div>
                 </div>
 
+                <!-- GoPress WordPress Config -->
+                <h4 class="text-xs font-bold text-indigo-400 uppercase tracking-widest border-t border-[#23314B]/40 pt-4 flex items-center gap-1.5 select-none">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"></path>
+                    </svg>
+                    Integracja z GoPress & WordPress
+                </h4>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="space-y-1.5 md:col-span-2 flex items-center gap-3">
+                        <input type="checkbox" id="gopress_upload" name="gopress_upload" value="true" {{ if .Config.GopressUpload }}checked{{ end }}
+                               class="w-4 h-4 rounded border-[#23314B] bg-[#0A0F1A] text-indigo-600 focus:ring-indigo-500 focus:ring-offset-0 focus:outline-none cursor-pointer">
+                        <label for="gopress_upload" class="text-xs font-bold text-gray-200 uppercase tracking-wider cursor-pointer select-none">Automatycznie przesyłaj do WordPressa (GoPress --upload)</label>
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <label for="gopress_wp_domain" class="text-xs font-bold text-gray-400 uppercase tracking-wider">WordPress Domain</label>
+                        <input type="text" id="gopress_wp_domain" name="gopress_wp_domain" value="{{ .Config.GopressWpDomain }}"
+                               placeholder="https://mojastrona.pl"
+                               class="w-full px-3 py-2 bg-[#0A0F1A] border border-[#23314B] focus:border-indigo-500 text-xs text-white rounded-lg focus:outline-none font-mono">
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <label for="gopress_wp_user" class="text-xs font-bold text-gray-400 uppercase tracking-wider">WordPress User</label>
+                        <input type="text" id="gopress_wp_user" name="gopress_wp_user" value="{{ .Config.GopressWpUser }}"
+                               placeholder="np. admin"
+                               class="w-full px-3 py-2 bg-[#0A0F1A] border border-[#23314B] focus:border-indigo-500 text-xs text-white rounded-lg focus:outline-none font-mono">
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <label for="gopress_wp_secret" class="text-xs font-bold text-gray-400 uppercase tracking-wider">WordPress Application Password</label>
+                        <input type="password" id="gopress_wp_secret" name="gopress_wp_secret" value="{{ .Config.GopressWpSecret }}"
+                               placeholder="xxxx xxxx xxxx xxxx"
+                               class="w-full px-3 py-2 bg-[#0A0F1A] border border-[#23314B] focus:border-indigo-500 text-xs text-white rounded-lg focus:outline-none font-mono">
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <label for="gopress_wp_fb_token" class="text-xs font-bold text-gray-400 uppercase tracking-wider">FileBird API Token</label>
+                        <input type="password" id="gopress_wp_fb_token" name="gopress_wp_fb_token" value="{{ .Config.GopressFbToken }}"
+                               placeholder="FileBird Token"
+                               class="w-full px-3 py-2 bg-[#0A0F1A] border border-[#23314B] focus:border-indigo-500 text-xs text-white rounded-lg focus:outline-none font-mono">
+                    </div>
+                </div>
+
                 <!-- Textarea -->
                 <div class="space-y-1.5">
                     <label for="image_generation_base_prompt" class="text-xs font-bold text-gray-400 uppercase tracking-wider">Bazowy Prompt Generowania Obrazu (System)</label>

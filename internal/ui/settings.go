@@ -36,12 +36,14 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := map[string]interface{}{
-		"Config":               s.cfg,
-		"MaskedOpenAIKey":      maskKey(s.cfg.OpenAIApiKey),
-		"MaskedNanoBananaKey":  maskKey(s.cfg.NanoBananaKey),
-		"MaskedEnvatoToken":    maskKey(s.cfg.EnvatoApiToken),
-		"Costs":                costs,
-		"TotalCosts":           totalCosts,
+		"Config":                s.cfg,
+		"MaskedOpenAIKey":       maskKey(s.cfg.OpenAIApiKey),
+		"MaskedNanoBananaKey":   maskKey(s.cfg.NanoBananaKey),
+		"MaskedEnvatoToken":     maskKey(s.cfg.EnvatoApiToken),
+		"MaskedGopressWpSecret": maskKey(s.cfg.GopressWpSecret),
+		"MaskedGopressFbToken":  maskKey(s.cfg.GopressFbToken),
+		"Costs":                 costs,
+		"TotalCosts":            totalCosts,
 	}
 
 	err = s.tmpl.ExecuteTemplate(w, "settings", data)
@@ -188,6 +190,11 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 	envatoApiToken := r.FormValue("envato_api_token")
 	nanoBananaKey := r.FormValue("nano_banana_key")
 	imageGenPrompt := r.FormValue("image_generation_base_prompt")
+	gopressUploadStr := r.FormValue("gopress_upload")
+	gopressWpDomain := r.FormValue("gopress_wp_domain")
+	gopressWpUser := r.FormValue("gopress_wp_user")
+	gopressWpSecret := r.FormValue("gopress_wp_secret")
+	gopressFbToken := r.FormValue("gopress_wp_fb_token")
 
 	targetPhotos, err := strconv.Atoi(targetPhotosStr)
 	if err != nil || targetPhotos <= 0 {
@@ -203,6 +210,11 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 	s.cfg.EnvatoApiToken = envatoApiToken
 	s.cfg.NanoBananaKey = nanoBananaKey
 	s.cfg.ImageGenerationBasePrompt = imageGenPrompt
+	s.cfg.GopressUpload = gopressUploadStr == "true" || gopressUploadStr == "on"
+	s.cfg.GopressWpDomain = gopressWpDomain
+	s.cfg.GopressWpUser = gopressWpUser
+	s.cfg.GopressWpSecret = gopressWpSecret
+	s.cfg.GopressFbToken = gopressFbToken
 
 	s.bananaClient = generator.NewBananaClient(s.cfg.NanoBananaKey, s.cfg.ImageGenerationBasePrompt)
 	s.envatoClient = stock.NewEnvatoClient(s.cfg.EnvatoApiToken)

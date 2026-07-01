@@ -538,8 +538,24 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 	gopressOutput := ""
 	if s.cfg.GopressCmdPath != "" {
 		if _, err := os.Stat(s.cfg.GopressCmdPath); err == nil {
-			log.Printf("Executing GoPress CLI at: %s %s", s.cfg.GopressCmdPath, s.cfg.ExportDir)
-			cmd := exec.CommandContext(ctx, s.cfg.GopressCmdPath, s.cfg.ExportDir)
+			args := []string{"-i", s.cfg.ExportDir}
+			if s.cfg.GopressUpload {
+				args = append(args, "--upload")
+				if s.cfg.GopressWpDomain != "" {
+					args = append(args, "--wp-domain", s.cfg.GopressWpDomain)
+				}
+				if s.cfg.GopressWpUser != "" {
+					args = append(args, "--wp-user", s.cfg.GopressWpUser)
+				}
+				if s.cfg.GopressWpSecret != "" {
+					args = append(args, "--wp-secret", s.cfg.GopressWpSecret)
+				}
+				if s.cfg.GopressFbToken != "" {
+					args = append(args, "--fb-token", s.cfg.GopressFbToken)
+				}
+			}
+			log.Printf("Executing GoPress CLI at: %s %v", s.cfg.GopressCmdPath, args)
+			cmd := exec.CommandContext(ctx, s.cfg.GopressCmdPath, args...)
 			output, err := cmd.CombinedOutput()
 			if err != nil {
 				gopressOutput = fmt.Sprintf("GoPress error: %v. Output: %s", err, string(output))

@@ -20,6 +20,11 @@ type Config struct {
 	NanoBananaKey             string `yaml:"nano_banana_key"`
 	VisionSortingPrompt       string `yaml:"vision_sorting_prompt"`
 	ImageGenerationBasePrompt string `yaml:"image_generation_base_prompt"`
+	GopressUpload             bool   `yaml:"gopress_upload"`
+	GopressWpDomain           string `yaml:"gopress_wp_domain"`
+	GopressWpUser             string `yaml:"gopress_wp_user"`
+	GopressWpSecret           string `yaml:"gopress_wp_secret"`
+	GopressFbToken            string `yaml:"gopress_wp_fb_token"`
 }
 
 // LoadConfig loads YAML configuration from path, overrides with environment variables,
@@ -81,6 +86,23 @@ func LoadConfig(path string) (*Config, error) {
 	}
 	if val := os.Getenv("IMAGE_GENERATION_BASE_PROMPT"); val != "" {
 		cfg.ImageGenerationBasePrompt = val
+	}
+	if val := os.Getenv("GOPRESS_UPLOAD"); val != "" {
+		if b, err := strconv.ParseBool(val); err == nil {
+			cfg.GopressUpload = b
+		}
+	}
+	if val := os.Getenv("GOPRESS_WP_DOMAIN"); val != "" {
+		cfg.GopressWpDomain = val
+	}
+	if val := os.Getenv("GOPRESS_WP_USER"); val != "" {
+		cfg.GopressWpUser = val
+	}
+	if val := os.Getenv("GOPRESS_WP_SECRET"); val != "" {
+		cfg.GopressWpSecret = val
+	}
+	if val := os.Getenv("GOPRESS_WP_FB_TOKEN"); val != "" {
+		cfg.GopressFbToken = val
 	}
 
 	return cfg, nil
