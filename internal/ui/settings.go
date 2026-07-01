@@ -42,6 +42,7 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		"MaskedEnvatoToken":     maskKey(s.cfg.EnvatoApiToken),
 		"MaskedGopressWpSecret": maskKey(s.cfg.GopressWpSecret),
 		"MaskedGopressFbToken":  maskKey(s.cfg.GopressFbToken),
+		"DefaultExportDir":      s.getExportDir(),
 		"Costs":                 costs,
 		"TotalCosts":            totalCosts,
 	}

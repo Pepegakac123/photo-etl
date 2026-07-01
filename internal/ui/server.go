@@ -497,16 +497,24 @@ func (s *Server) handleLocalMedia(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, filePath)
 }
 
+func (s *Server) getExportDir() string {
+	if s.cfg.ExportDir != "" {
+		return s.cfg.ExportDir
+	}
+	clientName := "default_client"
+	if s.clientDir != "" {
+		clientName = filepath.Base(s.clientDir)
+	}
+	return filepath.Join(os.TempDir(), "photo_etl_export_"+clientName)
+}
+
 func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	if s.cfg.ExportDir == "" {
-		http.Error(w, "EXPORT_DIR is not configured", http.StatusBadRequest)
-		return
-	}
+	exportDir := s.getExportDir()
 
 	// Clear export directory first
-	_ = os.RemoveAll(s.cfg.ExportDir)
-	_ = os.MkdirAll(s.cfg.ExportDir, 0755)
+	_ = os.RemoveAll(exportDir)
+	_ = os.MkdirAll(exportDir, 0755)
 
 	services, err := s.db.ListServices(ctx)
 	if err != nil {
@@ -521,7 +529,7 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		destServiceDir := filepath.Join(s.cfg.ExportDir, svc.Name)
+		destServiceDir := filepath.Join(exportDir, svc.Name)
 		_ = os.MkdirAll(destServiceDir, 0755)
 
 		for _, p := range photos {
@@ -534,13 +542,13 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	log.Printf("Exported %d approved photos to %s", copyCount, s.cfg.ExportDir)
+	log.Printf("Exported %d approved photos to %s", copyCount, exportDir)
 
 	// Execute GoPress CLI if configured
 	gopressOutput := ""
 	if s.cfg.GopressCmdPath != "" {
 		if _, err := os.Stat(s.cfg.GopressCmdPath); err == nil {
-			args := []string{"-i", s.cfg.ExportDir}
+			args := []string{"-i", exportDir}
 			if s.cfg.GopressUpload {
 				args = append(args, "--upload")
 				if s.cfg.GopressWpDomain != "" {

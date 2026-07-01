@@ -47,7 +47,7 @@ func LoadConfig(path string) (*Config, error) {
 		TargetPhotosPerService: 5,
 		LocalGalleryPath:       "/home/kacper/GoogleDrive/overflow-praca/Galeria Zdjęć Usługowych",
 		ConcurrencyLimit:       5,
-		VisionSortingPrompt:    "Jesteś ekspert budowlany. Zwróć JSON z przypisaniem zdjęcia do jednej z podanych kategorii. Jeśli zdjęcie to śmieć, zwróć kategorię 'REJECT'.",
+		VisionSortingPrompt:    "Jesteś ekspertem budowlanym. Przypisz zdjęcie do jednej z podanych kategorii. Jeśli zdjęcie nie pasuje do żadnej kategorii lub przedstawia śmieci, zwróć 'REJECT'.",
 		ImageGenerationBasePrompt: "Zdjęcie musi wyglądać jak zrobione amatorsko, telefonem komórkowym, naturalne oświetlenie na budowie. Złota zasada: brak widocznych twarzy, brak logotypów, brak napisów. Styl surowy i realistyczny.",
 	}
 
@@ -57,7 +57,14 @@ func LoadConfig(path string) (*Config, error) {
 			if err := yaml.Unmarshal(data, cfg); err != nil {
 				return nil, fmt.Errorf("failed to parse config file: %w", err)
 			}
-		} else if !os.IsNotExist(err) {
+		} else if os.IsNotExist(err) {
+			// Save default settings file
+			defaultData, err := yaml.Marshal(cfg)
+			if err == nil {
+				_ = os.MkdirAll(filepath.Dir(path), 0755)
+				_ = os.WriteFile(path, defaultData, 0644)
+			}
+		} else {
 			return nil, fmt.Errorf("failed to read config file: %w", err)
 		}
 	}
