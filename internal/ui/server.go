@@ -101,6 +101,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("POST /settings/test/envato", s.handleTestEnvato)
 	s.mux.HandleFunc("POST /settings/costs/clear", s.handleClearCosts)
 	s.mux.HandleFunc("POST /client/select", s.handleClientSelect)
+	s.mux.HandleFunc("POST /client/sort-screenshots", s.handleSortScreenshots)
 	s.mux.HandleFunc("GET /client/change", s.handleClientChange)
 	s.mux.HandleFunc("POST /settings/save", s.handleSettingsSave)
 }

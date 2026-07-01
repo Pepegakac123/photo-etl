@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/Pepegakac123/photo-etl/internal/config"
 	"github.com/Pepegakac123/photo-etl/internal/gallery"
@@ -18,7 +17,6 @@ import (
 	"github.com/Pepegakac123/photo-etl/internal/storage"
 	"github.com/Pepegakac123/photo-etl/internal/translate"
 	"github.com/Pepegakac123/photo-etl/internal/ui"
-	"github.com/Pepegakac123/photo-etl/internal/vision"
 )
 
 type translateWrapper struct{}
@@ -32,7 +30,6 @@ func main() {
 	configPath := flag.String("config", defaultConfig, "path to config file")
 	clientDir := flag.String("client", "", "path to client directory to process")
 	port := flag.Int("port", 8080, "port to run HTTP server on")
-	skipSorting := flag.Bool("skip-sorting", false, "skip AI vision classification of screenshots")
 	flag.Parse()
 
 	var absClientDir string
@@ -66,7 +63,6 @@ func main() {
 	ctx := context.Background()
 
 	// 3. Scan & Ingest client directory if DB is empty
-	var screenshotsFolder string
 	if db != nil {
 		services, err := db.ListServices(ctx)
 		if err != nil {
@@ -81,38 +77,8 @@ func main() {
 				log.Fatalf("Failed to scan client directory: %v", err)
 			}
 			log.Printf("Ingestion complete. Registered %d services.", len(res.ServicesAdded))
-			screenshotsFolder = res.ScreenshotsFolder
 		} else {
 			log.Printf("Resuming existing project. Found %d registered services in DB.", len(services))
-			// Detect screenshots folder dynamically
-			entries, err := os.ReadDir(absClientDir)
-			if err == nil {
-				for _, entry := range entries {
-					if entry.IsDir() {
-						nameLower := strings.ToLower(entry.Name())
-						if strings.Contains(nameLower, "whatsapp") || strings.Contains(nameLower, "zrzuty") {
-							screenshotsFolder = filepath.Join(absClientDir, entry.Name())
-							break
-						}
-					}
-				}
-			}
-		}
-
-		// 4. Run AI Vision Sorter on screenshots if available and not skipped
-		if screenshotsFolder != "" && !*skipSorting && len(services) == 0 {
-			if cfg.OpenAIApiKey == "" {
-				log.Println("WARNING: OPENAI_API_KEY is not configured. Skipping screenshot classification.")
-			} else {
-				log.Printf("Detected screenshots folder: %s. Starting AI Vision Sorting...", screenshotsFolder)
-				visionClient := vision.NewClient(cfg.OpenAIApiKey, cfg.AiVisionModel, cfg.VisionSortingPrompt)
-				sorter := ingest.NewSorter(db, visionClient, cfg.ConcurrencyLimit)
-				if err := sorter.SortScreenshots(ctx, screenshotsFolder); err != nil {
-					log.Printf("Error sorting screenshots: %v", err)
-				} else {
-					log.Println("AI Vision Sorting completed successfully.")
-				}
-			}
 		}
 	}
 

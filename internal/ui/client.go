@@ -82,26 +82,7 @@ func (s *Server) handleClientSelect(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Detect screenshots folder
-		var screenshotsFolder string
-		entries, err := os.ReadDir(absPath)
-		if err == nil {
-			for _, entry := range entries {
-				if entry.IsDir() {
-					nameLower := strings.ToLower(entry.Name())
-					if strings.Contains(nameLower, "whatsapp") || strings.Contains(nameLower, "zrzuty") {
-						screenshotsFolder = filepath.Join(absPath, entry.Name())
-						break
-					}
-				}
-			}
-		}
 
-		if screenshotsFolder != "" && s.cfg.OpenAIApiKey != "" {
-			visionClient := vision.NewClient(s.cfg.OpenAIApiKey, s.cfg.AiVisionModel, s.cfg.VisionSortingPrompt)
-			sorter := ingest.NewSorter(db, visionClient, s.cfg.ConcurrencyLimit)
-			_ = sorter.SortScreenshots(ctx, screenshotsFolder)
-		}
 
 		log.Printf("Dynamically wczytano klienta. Zarejestrowano %d usług.", len(res.ServicesAdded))
 	} else {
@@ -118,4 +99,62 @@ func (s *Server) handleClientSelect(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("HX-Refresh", "true")
+}
+
+func (s *Server) handleSortScreenshots(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if s.clientDir == "" || s.db == nil {
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte(`<script>showToast("Najpierw wczytaj folder klienta.", "error");</script>`))
+		return
+	}
+
+	if s.cfg.OpenAIApiKey == "" {
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte(`<script>showToast("Skonfiguruj klucz OpenAI w ustawieniach, aby uruchomić klasyfikację.", "error");</script>`))
+		return
+	}
+
+	// Detect screenshots folder
+	var screenshotsFolder string
+	entries, err := os.ReadDir(s.clientDir)
+	if err != nil {
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte(fmt.Sprintf(`<script>showToast("Błąd odczytu katalogu: %v", "error");</script>`, err)))
+		return
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			nameLower := strings.ToLower(entry.Name())
+			if strings.Contains(nameLower, "whatsapp") || strings.Contains(nameLower, "zrzuty") {
+				screenshotsFolder = filepath.Join(s.clientDir, entry.Name())
+				break
+			}
+		}
+	}
+
+	if screenshotsFolder == "" {
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte(`<script>showToast("Nie znaleziono folderu WhatsApp ani zrzutów ekranu.", "error");</script>`))
+		return
+	}
+
+	ctx := r.Context()
+	visionClient := vision.NewClient(s.cfg.OpenAIApiKey, s.cfg.AiVisionModel, s.cfg.VisionSortingPrompt)
+	sorter := ingest.NewSorter(s.db, visionClient, s.cfg.ConcurrencyLimit)
+	
+	err = sorter.SortScreenshots(ctx, screenshotsFolder)
+	if err != nil {
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte(fmt.Sprintf(`<script>showToast("Błąd klasyfikacji: %v", "error");</script>`, err)))
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html")
+	w.Write([]byte(`<script>showToast("Klasyfikacja AI zakończona pomyślnie!", "success"); setTimeout(() => { window.location.reload(); }, 1500);</script>`))
 }

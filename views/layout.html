@@ -68,6 +68,15 @@
             </div>
         </div>
         <div class="flex items-center gap-3">
+            {{ if .ClientDir }}
+            <button onclick="openClientModal()" 
+                    class="px-3.5 py-1.5 bg-[#161F30] hover:bg-[#1E2B44] border border-[#2B3B57] text-gray-300 font-semibold rounded-lg text-xs transition duration-200 active:scale-[0.98] flex items-center justify-center gap-1.5 select-none">
+                <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path>
+                </svg>
+                <span>Zmień klienta</span>
+            </button>
+            {{ end }}
             <button hx-get="/settings" 
                     hx-target="#workspace-container"
                     hx-indicator="#global-indicator" 
@@ -294,6 +303,54 @@
 
         </div>
     </div>
+
+    <!-- Client Loader Modal -->
+    <div id="client-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm hidden transition-all duration-300 animate-fadeIn">
+        <div class="glass border border-[#23314B] rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl relative flex flex-col glow">
+            
+            <!-- Header -->
+            <div class="flex items-center justify-between border-b border-[#23314B] pb-3 shrink-0">
+                <h3 class="text-sm font-bold text-gray-100 uppercase tracking-wider flex items-center gap-2">
+                    <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+                    </svg>
+                    Wczytaj folder klienta
+                </h3>
+                <button onclick="closeClientModal()" class="text-gray-400 hover:text-white transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Form -->
+            <form hx-post="/client/select" class="space-y-4">
+                <div class="space-y-1.5">
+                    <label for="client_path_modal" class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Ścieżka do katalogu klienta</label>
+                    <input type="text" id="client_path_modal" name="client_path" placeholder="np. /home/kacper/projects/photo-etl/test_client" required
+                           class="w-full bg-[#0E1524] border border-[#23314B] rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 transition font-sans">
+                </div>
+
+                <div class="flex justify-end gap-3 pt-2">
+                    <button type="button" onclick="closeClientModal()" class="px-4 py-2 border border-[#23314B] hover:bg-white/5 text-gray-400 hover:text-white text-xs font-semibold rounded-lg transition duration-200">
+                        Anuluj
+                    </button>
+                    <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg transition duration-200 shadow">
+                        Wczytaj klienta
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        window.openClientModal = function() {
+            document.getElementById('client-modal').classList.remove('hidden');
+        };
+        window.closeClientModal = function() {
+            document.getElementById('client-modal').classList.add('hidden');
+        };
+    </script>
 </body>
 </html>
 
