@@ -1,0 +1,15 @@
+# SQLite DB files
+*.db
+*.db-journal
+*.db-wal
+
+# Build binaries
+server
+photo-etl
+
+# Local developer mock folders
+mock_gallery/
+test_client/
+export/
+config.yaml
+.temp/

@@ -88,6 +88,9 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("POST /settings/test/gemini", s.handleTestGemini)
 	s.mux.HandleFunc("POST /settings/test/envato", s.handleTestEnvato)
 	s.mux.HandleFunc("POST /settings/costs/clear", s.handleClearCosts)
+	s.mux.HandleFunc("POST /client/select", s.handleClientSelect)
+	s.mux.HandleFunc("GET /client/change", s.handleClientChange)
+	s.mux.HandleFunc("POST /settings/save", s.handleSettingsSave)
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -111,6 +114,9 @@ type serviceProgressView struct {
 }
 
 func (s *Server) getSidebarData(ctx context.Context) ([]*serviceProgressView, error) {
+	if s.db == nil {
+		return nil, nil
+	}
 	progress, err := s.db.GetServiceProgress(ctx)
 	if err != nil {
 		return nil, err
@@ -137,8 +143,15 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	clientName := ""
+	if s.clientDir != "" {
+		clientName = filepath.Base(s.clientDir)
+	}
+
 	data := map[string]interface{}{
-		"Services": sidebarData,
+		"Services":   sidebarData,
+		"ClientDir":  s.clientDir,
+		"ClientName": clientName,
 	}
 
 	err = s.tmpl.ExecuteTemplate(w, "layout.html", data)

@@ -34,15 +34,25 @@ func main() {
 	skipSorting := flag.Bool("skip-sorting", false, "skip AI vision classification of screenshots")
 	flag.Parse()
 
-	if *clientDir == "" {
-		fmt.Println("Error: -client flag is required.")
-		flag.Usage()
-		os.Exit(1)
-	}
+	var absClientDir string
+	var db *storage.DB
 
-	absClientDir, err := filepath.Abs(*clientDir)
-	if err != nil {
-		log.Fatalf("Invalid client directory: %v", err)
+	if *clientDir != "" {
+		var err error
+		absClientDir, err = filepath.Abs(*clientDir)
+		if err != nil {
+			log.Fatalf("Invalid client directory: %v", err)
+		}
+
+		// Initialize database inside the client directory (short-lived project DB)
+		dbPath := filepath.Join(absClientDir, "photo_etl.db")
+		log.Printf("Initializing project SQLite database at: %s", dbPath)
+		db, err = storage.InitDB(dbPath)
+		if err != nil {
+			log.Fatalf("Error initializing database: %v", err)
+		}
+	} else {
+		log.Println("No client directory specified at startup. You can load one from the UI homepage.")
 	}
 
 	// 1. Load config
@@ -52,62 +62,55 @@ func main() {
 		log.Fatalf("Error loading config: %v", err)
 	}
 
-	// 2. Initialize database inside the client directory (short-lived project DB)
-	dbPath := filepath.Join(absClientDir, "photo_etl.db")
-	log.Printf("Initializing project SQLite database at: %s", dbPath)
-	db, err := storage.InitDB(dbPath)
-	if err != nil {
-		log.Fatalf("Error initializing database: %v", err)
-	}
-	defer db.Close()
-
 	ctx := context.Background()
 
 	// 3. Scan & Ingest client directory if DB is empty
-	services, err := db.ListServices(ctx)
-	if err != nil {
-		log.Fatalf("Failed to query services: %v", err)
-	}
-
 	var screenshotsFolder string
-	if len(services) == 0 {
-		log.Println("Database is empty. Running directory scanner...")
-		scanner := ingest.NewScanner(db)
-		res, err := scanner.Scan(ctx, absClientDir)
+	if db != nil {
+		services, err := db.ListServices(ctx)
 		if err != nil {
-			log.Fatalf("Failed to scan client directory: %v", err)
+			log.Fatalf("Failed to query services: %v", err)
 		}
-		log.Printf("Ingestion complete. Registered %d services.", len(res.ServicesAdded))
-		screenshotsFolder = res.ScreenshotsFolder
-	} else {
-		log.Printf("Resuming existing project. Found %d registered services in DB.", len(services))
-		// Detect screenshots folder dynamically
-		entries, err := os.ReadDir(absClientDir)
-		if err == nil {
-			for _, entry := range entries {
-				if entry.IsDir() {
-					nameLower := strings.ToLower(entry.Name())
-					if strings.Contains(nameLower, "whatsapp") || strings.Contains(nameLower, "zrzuty") {
-						screenshotsFolder = filepath.Join(absClientDir, entry.Name())
-						break
+
+		if len(services) == 0 {
+			log.Println("Database is empty. Running directory scanner...")
+			scanner := ingest.NewScanner(db)
+			res, err := scanner.Scan(ctx, absClientDir)
+			if err != nil {
+				log.Fatalf("Failed to scan client directory: %v", err)
+			}
+			log.Printf("Ingestion complete. Registered %d services.", len(res.ServicesAdded))
+			screenshotsFolder = res.ScreenshotsFolder
+		} else {
+			log.Printf("Resuming existing project. Found %d registered services in DB.", len(services))
+			// Detect screenshots folder dynamically
+			entries, err := os.ReadDir(absClientDir)
+			if err == nil {
+				for _, entry := range entries {
+					if entry.IsDir() {
+						nameLower := strings.ToLower(entry.Name())
+						if strings.Contains(nameLower, "whatsapp") || strings.Contains(nameLower, "zrzuty") {
+							screenshotsFolder = filepath.Join(absClientDir, entry.Name())
+							break
+						}
 					}
 				}
 			}
 		}
-	}
 
-	// 4. Run AI Vision Sorter on screenshots if available and not skipped
-	if screenshotsFolder != "" && !*skipSorting && len(services) == 0 {
-		if cfg.OpenAIApiKey == "" {
-			log.Println("WARNING: OPENAI_API_KEY is not configured. Skipping screenshot classification.")
-		} else {
-			log.Printf("Detected screenshots folder: %s. Starting AI Vision Sorting...", screenshotsFolder)
-			visionClient := vision.NewClient(cfg.OpenAIApiKey, cfg.AiVisionModel, cfg.VisionSortingPrompt)
-			sorter := ingest.NewSorter(db, visionClient, cfg.ConcurrencyLimit)
-			if err := sorter.SortScreenshots(ctx, screenshotsFolder); err != nil {
-				log.Printf("Error sorting screenshots: %v", err)
+		// 4. Run AI Vision Sorter on screenshots if available and not skipped
+		if screenshotsFolder != "" && !*skipSorting && len(services) == 0 {
+			if cfg.OpenAIApiKey == "" {
+				log.Println("WARNING: OPENAI_API_KEY is not configured. Skipping screenshot classification.")
 			} else {
-				log.Println("AI Vision Sorting completed successfully.")
+				log.Printf("Detected screenshots folder: %s. Starting AI Vision Sorting...", screenshotsFolder)
+				visionClient := vision.NewClient(cfg.OpenAIApiKey, cfg.AiVisionModel, cfg.VisionSortingPrompt)
+				sorter := ingest.NewSorter(db, visionClient, cfg.ConcurrencyLimit)
+				if err := sorter.SortScreenshots(ctx, screenshotsFolder); err != nil {
+					log.Printf("Error sorting screenshots: %v", err)
+				} else {
+					log.Println("AI Vision Sorting completed successfully.")
+				}
 			}
 		}
 	}
@@ -117,7 +120,7 @@ func main() {
 	galleryService := gallery.NewService(db, trans, cfg.LocalGalleryPath)
 
 	// Index local gallery at startup if path is set and valid
-	if cfg.LocalGalleryPath != "" {
+	if db != nil && cfg.LocalGalleryPath != "" {
 		if _, err := os.Stat(cfg.LocalGalleryPath); err == nil {
 			log.Printf("Indexing local gallery at: %s", cfg.LocalGalleryPath)
 			if err := galleryService.IndexGallery(ctx); err != nil {

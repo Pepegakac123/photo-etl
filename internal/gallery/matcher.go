@@ -29,6 +29,14 @@ func NewService(db *storage.DB, trans Translator, galleryPath string) *Service {
 	}
 }
 
+func (s *Service) SetDB(db *storage.DB) {
+	s.db = db
+}
+
+func (s *Service) SetLocalGalleryPath(path string) {
+	s.galleryPath = path
+}
+
 type MatchResult struct {
 	Folder *storage.GalleryFolder
 	Score  float64

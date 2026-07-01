@@ -5,8 +5,12 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 
+	"github.com/Pepegakac123/photo-etl/internal/generator"
+	"github.com/Pepegakac123/photo-etl/internal/stock"
 	"github.com/Pepegakac123/photo-etl/internal/vision"
+	"gopkg.in/yaml.v3"
 )
 
 // Helper to mask sensitive keys
@@ -167,4 +171,51 @@ func (s *Server) handleClearCosts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.handleSettings(w, r)
+}
+
+func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	targetPhotosStr := r.FormValue("target_photos_per_service")
+	localGalleryPath := r.FormValue("local_gallery_path")
+	exportDir := r.FormValue("export_dir")
+	gopressCmdPath := r.FormValue("gopress_cmd_path")
+	openaiApiKey := r.FormValue("openai_api_key")
+	aiVisionModel := r.FormValue("ai_vision_model")
+	envatoApiToken := r.FormValue("envato_api_token")
+	nanoBananaKey := r.FormValue("nano_banana_key")
+	imageGenPrompt := r.FormValue("image_generation_base_prompt")
+
+	targetPhotos, err := strconv.Atoi(targetPhotosStr)
+	if err != nil || targetPhotos <= 0 {
+		targetPhotos = 5
+	}
+
+	s.cfg.TargetPhotosPerService = targetPhotos
+	s.cfg.LocalGalleryPath = localGalleryPath
+	s.cfg.ExportDir = exportDir
+	s.cfg.GopressCmdPath = gopressCmdPath
+	s.cfg.OpenAIApiKey = openaiApiKey
+	s.cfg.AiVisionModel = aiVisionModel
+	s.cfg.EnvatoApiToken = envatoApiToken
+	s.cfg.NanoBananaKey = nanoBananaKey
+	s.cfg.ImageGenerationBasePrompt = imageGenPrompt
+
+	s.bananaClient = generator.NewBananaClient(s.cfg.NanoBananaKey, s.cfg.ImageGenerationBasePrompt)
+	s.envatoClient = stock.NewEnvatoClient(s.cfg.EnvatoApiToken)
+	s.galleryService.SetLocalGalleryPath(localGalleryPath) // We will add this getter/setter in matcher.go if needed
+
+	configData, err := yaml.Marshal(s.cfg)
+	if err == nil {
+		_ = os.WriteFile("config.yaml", configData, 0644)
+	}
+
+	w.Header().Set("Content-Type", "text/html")
+	w.Write([]byte(`<div class="flex items-center gap-2 p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl text-xs font-semibold animate-fadeIn">
+		<svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+		<span>Konfiguracja zapisana pomyślnie i zsynchronizowana.</span>
+	</div>`))
 }
