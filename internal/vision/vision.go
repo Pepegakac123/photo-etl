@@ -38,7 +38,8 @@ type chatMessageContent struct {
 }
 
 type chatMessageImage struct {
-	URL string `json:"url"`
+	URL    string `json:"url"`
+	Detail string `json:"detail,omitempty"`
 }
 
 type chatMessage struct {
@@ -172,7 +173,8 @@ func (c *Client) ClassifyImage(ctx context.Context, imagePath string, categories
 					{
 						Type: "image_url",
 						ImageURL: &chatMessageImage{
-							URL: dataURL,
+							URL:    dataURL,
+							Detail: "low",
 						},
 					},
 				},

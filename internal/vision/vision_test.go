@@ -29,7 +29,8 @@ func TestClassifyImage(t *testing.T) {
 					Type     string `json:"type"`
 					Text     string `json:"text,omitempty"`
 					ImageURL *struct {
-						URL string `json:"url"`
+						URL    string `json:"url"`
+						Detail string `json:"detail"`
 					} `json:"image_url,omitempty"`
 				} `json:"content"`
 			} `json:"messages"`
@@ -46,13 +47,16 @@ func TestClassifyImage(t *testing.T) {
 			t.Errorf("expected model gpt-4o-mini, got %s", payload.Model)
 		}
 
-		// Verify we got the image in data URI format
+		// Verify we got the image in data URI format and detail is low
 		hasImage := false
 		for _, msg := range payload.Messages {
 			for _, content := range msg.Content {
 				if content.Type == "image_url" && content.ImageURL != nil {
 					if len(content.ImageURL.URL) > 0 {
 						hasImage = true
+						if content.ImageURL.Detail != "low" {
+							t.Errorf("expected image detail low, got %s", content.ImageURL.Detail)
+						}
 					}
 				}
 			}
