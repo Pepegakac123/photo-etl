@@ -400,5 +400,17 @@ func (d *DB) AddOrApprovePhoto(ctx context.Context, serviceID int64, filePath st
 	return err
 }
 
+// GetGalleryFolder retrieves a gallery folder by its ID.
+func (d *DB) GetGalleryFolder(ctx context.Context, id int64) (*GalleryFolder, error) {
+	var f GalleryFolder
+	err := d.db.QueryRowContext(ctx, "SELECT id, folder_name, folder_path, german_name, polish_name FROM gallery_folders WHERE id = ?", id).Scan(
+		&f.ID, &f.FolderName, &f.FolderPath, &f.GermanName, &f.PolishName,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &f, nil
+}
+
 
 

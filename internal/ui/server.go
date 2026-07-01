@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"html"
 	"html/template"
 	"image"
 	"image/jpeg"
@@ -87,7 +88,8 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("GET /", s.handleIndex)
 	s.mux.HandleFunc("GET /services/{id}", s.handleWorkspace)
 	s.mux.HandleFunc("POST /services/{id}/gallery/search", s.handleGallerySearch)
-	s.mux.HandleFunc("POST /services/{id}/gallery/manual-search", s.handleGalleryManualSearch)
+	s.mux.HandleFunc("POST /services/{id}/gallery/autocomplete", s.handleGalleryAutocomplete)
+	s.mux.HandleFunc("POST /services/{id}/gallery/associate-folder", s.handleGalleryAssociateFolder)
 	s.mux.HandleFunc("POST /services/{id}/stock/search", s.handleStockSearch)
 	s.mux.HandleFunc("POST /services/{id}/generate", s.handleGenerateImage)
 	s.mux.HandleFunc("POST /photos/{id}/approve", s.handleApprovePhoto)
@@ -567,7 +569,7 @@ func (s *Server) handleGallerySearch(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) handleGalleryManualSearch(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleGalleryAutocomplete(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	idStr := r.PathValue("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
@@ -576,64 +578,106 @@ func (s *Server) handleGalleryManualSearch(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	_, err = s.db.GetService(ctx, id)
-	if err != nil {
-		http.Error(w, "Service not found", http.StatusNotFound)
-		return
-	}
-
 	query := r.FormValue("manual-gallery-query")
-	if query == "" {
+	if len(strings.TrimSpace(query)) < 2 {
 		w.Header().Set("Content-Type", "text/html")
-		w.Write([]byte(`<p class="text-sm text-gray-500 col-span-2">Wpisz nazwę folderu, aby wyszukać.</p>`))
+		w.Write([]byte(""))
 		return
 	}
 
-	// List all indexed folders
 	folders, err := s.db.ListGalleryFolders(ctx)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to list gallery folders: %v", err), http.StatusInternalServerError)
+		http.Error(w, "Failed to load folders", http.StatusInternalServerError)
 		return
 	}
 
-	type matchInfo struct {
-		folder *storage.GalleryFolder
-		score  float64
+	type matchItem struct {
+		ID         int64
+		FolderName string
+		GermanName string
+		Score      int
 	}
-	var matches []matchInfo
+	var matched []matchItem
 
-	queryLower := strings.ToLower(query)
+	queryLower := strings.ToLower(strings.TrimSpace(query))
 	for _, f := range folders {
-		score := 0.0
-		folderNameLower := strings.ToLower(f.FolderName)
+		score := 0
+		folderLower := strings.ToLower(f.FolderName)
 		germanLower := strings.ToLower(f.GermanName)
 		polishLower := strings.ToLower(f.PolishName)
 
-		if strings.Contains(folderNameLower, queryLower) ||
+		if strings.Contains(folderLower, queryLower) ||
 			strings.Contains(germanLower, queryLower) ||
 			strings.Contains(polishLower, queryLower) {
-			score += 1.0
+			score = 1
 		}
 
 		if score > 0 {
-			matches = append(matches, matchInfo{folder: f, score: score})
+			matched = append(matched, matchItem{
+				ID:         f.ID,
+				FolderName: f.FolderName,
+				GermanName: f.GermanName,
+				Score:      score,
+			})
 		}
 	}
 
-	// Sort matches by score, then folder name
-	sort.SliceStable(matches, func(i, j int) bool {
-		if matches[i].score != matches[j].score {
-			return matches[i].score > matches[j].score
-		}
-		return strings.ToLower(matches[i].folder.FolderName) < strings.ToLower(matches[j].folder.FolderName)
+	sort.SliceStable(matched, func(i, j int) bool {
+		return strings.ToLower(matched[i].FolderName) < strings.ToLower(matched[j].FolderName)
 	})
 
-	// Limit to top 3 matches
-	if len(matches) > 3 {
-		matches = matches[:3]
+	if len(matched) > 15 {
+		matched = matched[:15]
 	}
 
-	// Query already added photos to filter duplicates
+	w.Header().Set("Content-Type", "text/html")
+	if len(matched) == 0 {
+		w.Write([]byte(`<div class="absolute left-0 right-0 mt-1 bg-[#0F1422] border border-[#23314B] rounded-xl p-3 text-xs text-gray-500 shadow-2xl z-50">Brak pasujących folderów</div>`))
+		return
+	}
+
+	htmlContent := fmt.Sprintf(`<div class="absolute left-0 right-0 mt-1 bg-[#0F1422] border border-[#23314B] rounded-xl shadow-2xl overflow-hidden max-h-60 overflow-y-auto z-50 divide-y divide-[#23314B]/50 animate-fadeIn select-none">`)
+	for _, item := range matched {
+		escapedName := html.EscapeString(item.FolderName)
+		escapedGerman := html.EscapeString(item.GermanName)
+		htmlContent += fmt.Sprintf(`
+			<button hx-post="/services/%d/gallery/associate-folder"
+					hx-vals='{"folder_id": "%d"}'
+					hx-target="#gallery-results"
+					hx-indicator="#manual-gallery-indicator"
+					onclick="clearAutocomplete()"
+					class="w-full text-left px-4 py-2.5 hover:bg-indigo-600/20 text-xs text-gray-200 hover:text-white transition flex items-center justify-between group active:scale-[0.99] outline-none">
+				<span class="font-medium truncate pr-2">%s</span>
+				<span class="text-[10px] text-gray-500 group-hover:text-indigo-400 font-mono shrink-0">%s</span>
+			</button>
+		`, id, item.ID, escapedName, escapedGerman)
+	}
+	htmlContent += `</div>`
+	w.Write([]byte(htmlContent))
+}
+
+func (s *Server) handleGalleryAssociateFolder(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	idStr := r.PathValue("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid service ID", http.StatusBadRequest)
+		return
+	}
+
+	folderIDStr := r.FormValue("folder_id")
+	folderID, err := strconv.ParseInt(folderIDStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid folder ID", http.StatusBadRequest)
+		return
+	}
+
+	folder, err := s.db.GetGalleryFolder(ctx, folderID)
+	if err != nil {
+		http.Error(w, "Folder not found", http.StatusNotFound)
+		return
+	}
+
 	existingPhotos, err := s.db.ListPhotosByService(ctx, id)
 	addedPaths := make(map[string]bool)
 	if err == nil {
@@ -644,40 +688,35 @@ func (s *Server) handleGalleryManualSearch(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
+	photos, err := s.galleryService.ListPhotosInFolder(folder.FolderPath)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to list photos: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	var filteredPhotos []string
+	for _, p := range photos {
+		if !addedPaths[p] {
+			filteredPhotos = append(filteredPhotos, p)
+		}
+	}
+
+	if len(filteredPhotos) > 6 {
+		filteredPhotos = filteredPhotos[:6]
+	}
+
 	type folderMatch struct {
 		Folder *storage.GalleryFolder
 		Score  float64
 		Photos []string
 	}
 
-	var results []folderMatch
-	for _, m := range matches {
-		photos, err := s.galleryService.ListPhotosInFolder(m.folder.FolderPath)
-		if err != nil {
-			log.Printf("Failed to list photos in manual search folder %s: %v", m.folder.FolderName, err)
-			continue
-		}
-		var filteredPhotos []string
-		for _, p := range photos {
-			if !addedPaths[p] {
-				filteredPhotos = append(filteredPhotos, p)
-			}
-		}
-		// limit previews in folder to 6
-		if len(filteredPhotos) > 6 {
-			filteredPhotos = filteredPhotos[:6]
-		}
-		results = append(results, folderMatch{
-			Folder: m.folder,
-			Score:  m.score,
+	results := []folderMatch{
+		{
+			Folder: folder,
+			Score:  1.0,
 			Photos: filteredPhotos,
-		})
-	}
-
-	if len(results) == 0 {
-		w.Header().Set("Content-Type", "text/html")
-		w.Write([]byte(`<p class="text-sm text-rose-400 col-span-2">Nie znaleziono żadnych folderów w galerii pasujących do frazy.</p>`))
-		return
+		},
 	}
 
 	data := map[string]interface{}{
