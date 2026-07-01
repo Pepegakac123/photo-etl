@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/Pepegakac123/photo-etl/internal/ingest"
@@ -101,21 +102,44 @@ func (s *Server) handleClientSelect(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("HX-Refresh", "true")
 }
 
-func (s *Server) handleSortScreenshots(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+func (s *Server) handleSortScreenshotsStream(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Set SSE headers
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
 		return
 	}
 
+	send := func(event, data string) {
+		_, _ = fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, data)
+		flusher.Flush()
+	}
+
+	sendLog := func(msg string) {
+		send("log", msg)
+	}
+
+	sendProgress := func(pct int, status string) {
+		send("progress", strconv.Itoa(pct))
+		send("status", status)
+	}
+
+	sendLog("[SYSTEM] Rozpoczynanie klasyfikacji AI Vision...")
+
 	if s.clientDir == "" || s.db == nil {
-		w.Header().Set("Content-Type", "text/html")
-		w.Write([]byte(`<script>showToast("Najpierw wczytaj folder klienta.", "error");</script>`))
+		sendLog("[ERR] Najpierw wczytaj folder klienta.")
 		return
 	}
 
 	if s.cfg.OpenAIApiKey == "" {
-		w.Header().Set("Content-Type", "text/html")
-		w.Write([]byte(`<script>showToast("Skonfiguruj klucz OpenAI w ustawieniach, aby uruchomić klasyfikację.", "error");</script>`))
+		sendLog("[ERR] Brak skonfigurowanego klucza OpenAI w Ustawieniach. Przerwanie.")
 		return
 	}
 
@@ -123,8 +147,7 @@ func (s *Server) handleSortScreenshots(w http.ResponseWriter, r *http.Request) {
 	var screenshotsFolder string
 	entries, err := os.ReadDir(s.clientDir)
 	if err != nil {
-		w.Header().Set("Content-Type", "text/html")
-		w.Write([]byte(fmt.Sprintf(`<script>showToast("Błąd odczytu katalogu: %v", "error");</script>`, err)))
+		sendLog(fmt.Sprintf("[ERR] Błąd odczytu katalogu klienta: %v", err))
 		return
 	}
 
@@ -139,22 +162,122 @@ func (s *Server) handleSortScreenshots(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if screenshotsFolder == "" {
-		w.Header().Set("Content-Type", "text/html")
-		w.Write([]byte(`<script>showToast("Nie znaleziono folderu WhatsApp ani zrzutów ekranu.", "error");</script>`))
+		sendLog("[ERR] Nie znaleziono folderu WhatsApp ani zrzutów ekranu w katalogu klienta.")
 		return
 	}
 
-	ctx := r.Context()
-	visionClient := vision.NewClient(s.cfg.OpenAIApiKey, s.cfg.AiVisionModel, s.cfg.VisionSortingPrompt)
-	sorter := ingest.NewSorter(s.db, visionClient, s.cfg.ConcurrencyLimit)
-	
-	err = sorter.SortScreenshots(ctx, screenshotsFolder)
+	sendLog(fmt.Sprintf("[SYSTEM] Wykryto folder zrzutów: %s", screenshotsFolder))
+
+	files, err := os.ReadDir(screenshotsFolder)
 	if err != nil {
-		w.Header().Set("Content-Type", "text/html")
-		w.Write([]byte(fmt.Sprintf(`<script>showToast("Błąd klasyfikacji: %v", "error");</script>`, err)))
+		sendLog(fmt.Sprintf("[ERR] Błąd odczytu folderu zrzutów: %v", err))
 		return
 	}
 
-	w.Header().Set("Content-Type", "text/html")
-	w.Write([]byte(`<script>showToast("Klasyfikacja AI zakończona pomyślnie!", "success"); setTimeout(() => { window.location.reload(); }, 1500);</script>`))
+	// Filter only image files
+	var imageFiles []os.DirEntry
+	for _, file := range files {
+		if !file.IsDir() && scanIsImage(file.Name()) {
+			imageFiles = append(imageFiles, file)
+		}
+	}
+
+	if len(imageFiles) == 0 {
+		sendLog("[SYSTEM] Brak nowych zdjęć w folderze zrzutów do sklasyfikowania.")
+		sendProgress(100, "Zakończono!")
+		send("complete", "done")
+		return
+	}
+
+	// LIMIT TO FIRST 5 PHOTOS AS REQUESTED FOR TESTING
+	if len(imageFiles) > 5 {
+		imageFiles = imageFiles[:5]
+		sendLog(fmt.Sprintf("[SYSTEM] Ograniczono klasyfikację do pierwszych 5 zdjęć w celach testowych."))
+	}
+
+	sendLog(fmt.Sprintf("[SYSTEM] Uruchamianie klasyfikacji dla %d zdjęć...", len(imageFiles)))
+	sendProgress(10, "Inicjalizacja modelu OpenAI...")
+
+	// Fetch all service names and map them to their database IDs
+	services, err := s.db.ListServices(ctx)
+	if err != nil {
+		sendLog(fmt.Sprintf("[ERR] Błąd pobierania usług: %v", err))
+		return
+	}
+
+	serviceMap := make(map[string]int64)
+	var categories []string
+	for _, svc := range services {
+		serviceMap[svc.Name] = svc.ID
+		categories = append(categories, svc.Name)
+	}
+
+	if len(categories) == 0 {
+		sendLog("[ERR] Brak usług zdefiniowanych w bazie danych do dopasowania.")
+		return
+	}
+
+	visionClient := vision.NewClient(s.cfg.OpenAIApiKey, s.cfg.AiVisionModel, s.cfg.VisionSortingPrompt)
+
+	// Custom inline classification to stream logs for each file!
+	for idx, file := range imageFiles {
+		progressPct := 10 + int(float64(idx)/float64(len(imageFiles))*85.0)
+		filename := file.Name()
+		filePath := filepath.Join(screenshotsFolder, filename)
+		sendProgress(progressPct, fmt.Sprintf("Klasyfikowanie obrazu %d/%d: %s...", idx+1, len(imageFiles), filename))
+
+		category, promptTokens, completionTokens, err := visionClient.ClassifyImage(ctx, filePath, categories)
+		if err != nil {
+			sendLog(fmt.Sprintf("  [ERR] Błąd klasyfikacji dla %s: %v", filename, err))
+			continue
+		}
+
+		// Log OpenAI cost to DB
+		cost := calculateOpenAICost(s.cfg.AiVisionModel, promptTokens, completionTokens)
+		_ = s.db.LogCost(ctx, "Vision Sorting (Manual)", s.cfg.AiVisionModel, s.cfg.AiVisionModel, promptTokens, completionTokens, cost)
+
+		if category == "REJECT" {
+			sendLog(fmt.Sprintf("  [OK] Zdjęcie %s odrzucone przez AI (nieprzydatne / śmieci).", filename))
+			continue
+		}
+
+		serviceID, ok := serviceMap[category]
+		if !ok {
+			sendLog(fmt.Sprintf("  [ERR] AI dopasowało do nieznanej kategorii %q dla %s.", category, filename))
+			continue
+		}
+
+		// Check if photo is already classified
+		exists, _ := s.db.PhotoExists(ctx, filePath)
+		if exists {
+			sendLog(fmt.Sprintf("  [OK] Zdjęcie %s było już wcześniej sklasyfikowane. Pomijam.", filename))
+			continue
+		}
+
+		_, err = s.db.CreatePhoto(ctx, serviceID, filePath, "Client", "pending")
+		if err != nil {
+			sendLog(fmt.Sprintf("  [ERR] Błąd zapisu w bazie dla %s: %v", filename, err))
+		} else {
+			sendLog(fmt.Sprintf("  [OK] Zdjęcie %s dopasowane do usługi: %s.", filename, category))
+		}
+	}
+
+	sendProgress(100, "Zakończono!")
+	send("complete", "done")
+}
+
+func scanIsImage(filename string) bool {
+	ext := strings.ToLower(filepath.Ext(filename))
+	return ext == ".jpg" || ext == ".jpeg" || ext == ".png" || ext == ".webp" || ext == ".heic"
+}
+
+func calculateOpenAICost(model string, promptTokens, completionTokens int) float64 {
+	inputRate := 0.00000015  // gpt-4o-mini default ($0.15 per 1M)
+	outputRate := 0.00000060 // gpt-4o-mini default ($0.60 per 1M)
+
+	if strings.Contains(strings.ToLower(model), "gpt-4o") && !strings.Contains(strings.ToLower(model), "mini") {
+		inputRate = 0.0000025
+		outputRate = 0.000010
+	}
+	return (float64(promptTokens) * inputRate) + (float64(completionTokens) * outputRate)
 }

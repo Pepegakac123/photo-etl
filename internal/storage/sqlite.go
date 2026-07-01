@@ -356,5 +356,15 @@ func (d *DB) ClearCosts(ctx context.Context) error {
 	return nil
 }
 
+// PhotoExists checks if a photo with the given filePath is already registered.
+func (d *DB) PhotoExists(ctx context.Context, filePath string) (bool, error) {
+	var count int
+	err := d.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM photos WHERE file_path = ?", filePath).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
 
 
