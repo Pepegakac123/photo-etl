@@ -17,29 +17,33 @@ func TestGenerateImage(t *testing.T) {
 		}
 
 		var payload struct {
-			Instances []struct {
-				Prompt string `json:"prompt"`
-			} `json:"instances"`
-			Parameters struct {
-				SampleCount int `json:"sampleCount"`
-			} `json:"parameters"`
+			Model string `json:"model"`
+			Input []struct {
+				Type string `json:"type"`
+				Text string `json:"text"`
+			} `json:"input"`
 		}
 
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			t.Fatalf("failed to decode request: %v", err)
 		}
 
-		if len(payload.Instances) != 1 || payload.Instances[0].Prompt == "" {
-			t.Errorf("invalid prompt payload")
+		if payload.Model != "gemini-3.1-flash-image" || len(payload.Input) != 1 || payload.Input[0].Text == "" {
+			t.Errorf("invalid prompt payload: %+v", payload)
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		// Mock response with a small base64 string for "fake" image bytes
+		// Mock response with interactions steps schema containing fake image bytes
 		responseJSON := `{
-			"predictions": [
+			"steps": [
 				{
-					"bytesBase64Encoded": "ZmFrZS1pbWFnZS1ieXRlcw==",
-					"mimeType": "image/png"
+					"type": "model_output",
+					"content": [
+						{
+							"type": "image",
+							"data": "ZmFrZS1pbWFnZS1ieXRlcw=="
+						}
+					]
 				}
 			]
 		}`

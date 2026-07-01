@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -16,6 +17,7 @@ type BananaClient struct {
 	basePrompt string
 	httpClient *http.Client
 	baseURL    string // Can be overridden in tests
+	model      string
 }
 
 func NewBananaClient(apiKey, basePrompt string) *BananaClient {
@@ -23,17 +25,38 @@ func NewBananaClient(apiKey, basePrompt string) *BananaClient {
 		apiKey:     apiKey,
 		basePrompt: basePrompt,
 		httpClient: &http.Client{},
-		baseURL:    "https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict",
+		baseURL:    "https://generativelanguage.googleapis.com/v1beta/interactions",
+		model:      "gemini-3.1-flash-image",
 	}
 }
 
-type imagenPrediction struct {
-	BytesBase64Encoded string `json:"bytesBase64Encoded"`
-	MimeType           string `json:"mimeType"`
+func (c *BananaClient) SetModel(model string) {
+	c.model = model
 }
 
-type imagenResponse struct {
-	Predictions []imagenPrediction `json:"predictions"`
+type contentPart struct {
+	Type string `json:"type"`
+	Text string `json:"text"`
+}
+
+type interactionsRequest struct {
+	Model string        `json:"model"`
+	Input []contentPart `json:"input"`
+}
+
+type contentBlock struct {
+	Type string `json:"type"`
+	Text string `json:"text,omitempty"`
+	Data string `json:"data,omitempty"`
+}
+
+type interactionStep struct {
+	Type    string         `json:"type"`
+	Content []contentBlock `json:"content"`
+}
+
+type interactionsResponse struct {
+	Steps []interactionStep `json:"steps"`
 }
 
 func (c *BananaClient) GenerateImage(ctx context.Context, serviceName, clientCountry, serviceDescription, outputPath string) error {
@@ -47,20 +70,19 @@ func (c *BananaClient) GenerateImage(ctx context.Context, serviceName, clientCou
 		serviceName, clientCountry, serviceDescription, c.basePrompt,
 	)
 
-	payload := map[string]interface{}{
-		"instances": []map[string]interface{}{
+	payload := interactionsRequest{
+		Model: c.model,
+		Input: []contentPart{
 			{
-				"prompt": prompt,
+				Type: "text",
+				Text: prompt,
 			},
-		},
-		"parameters": map[string]interface{}{
-			"sampleCount": 1,
 		},
 	}
 
 	bodyBytes, err := json.Marshal(payload)
 	if err != nil {
-		return fmt.Errorf("failed to marshal imagen request payload: %w", err)
+		return fmt.Errorf("failed to marshal interactions request payload: %w", err)
 	}
 
 	apiURL := c.baseURL
@@ -79,19 +101,39 @@ func (c *BananaClient) GenerateImage(ctx context.Context, serviceName, clientCou
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("gemini api returned status code: %d", resp.StatusCode)
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("gemini api returned status code: %d, response: %s", resp.StatusCode, string(respBody))
 	}
 
-	var imgResp imagenResponse
-	if err := json.NewDecoder(resp.Body).Decode(&imgResp); err != nil {
+	var interactionsResp interactionsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&interactionsResp); err != nil {
 		return fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	if len(imgResp.Predictions) == 0 {
-		return fmt.Errorf("no predictions returned from Gemini API")
+	var base64Data string
+	found := false
+	// Search backwards through steps for the last generated image block
+	for i := len(interactionsResp.Steps) - 1; i >= 0; i-- {
+		step := interactionsResp.Steps[i]
+		if step.Type == "model_output" {
+			for j := len(step.Content) - 1; j >= 0; j-- {
+				block := step.Content[j]
+				if block.Type == "image" && block.Data != "" {
+					base64Data = block.Data
+					found = true
+					break
+				}
+			}
+		}
+		if found {
+			break
+		}
 	}
 
-	base64Data := imgResp.Predictions[0].BytesBase64Encoded
+	if !found {
+		return fmt.Errorf("no image returned from Gemini API interactions endpoint")
+	}
+
 	imgBytes, err := base64.StdEncoding.DecodeString(base64Data)
 	if err != nil {
 		return fmt.Errorf("failed to decode base64 image bytes: %w", err)
