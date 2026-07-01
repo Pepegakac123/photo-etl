@@ -2,13 +2,13 @@
 <p class="text-sm text-gray-500 col-span-2">Nie znaleziono żadnych zdjęć w banku Envato.</p>
 {{ else }}
     {{ range .Photos }}
-    <div class="relative group rounded-xl overflow-hidden border border-[#23314B] bg-black aspect-video glow">
+    <div class="relative group rounded-xl overflow-hidden border border-[#23314B] bg-black aspect-video glow" data-photo-path="{{ .PreviewURL }}">
         <img src="{{ .PreviewURL }}" alt="{{ .Title }}" class="object-cover w-full h-full group-hover:scale-105 transition duration-200">
         <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/35 to-transparent p-3 flex flex-col justify-between opacity-0 group-hover:opacity-100 transition duration-150">
             <span class="text-[10px] text-gray-200 font-bold truncate">{{ .Title }}</span>
             <button hx-post="/photos/add?service_id={{ $.ServiceID }}&path={{ urlEscape .PreviewURL }}&source=Stock&title={{ urlEscape .Title }}" 
                     hx-target="#project-photos-container"
-                    onclick="this.closest('.relative').style.display='none'"
+                    onclick="if (document.querySelectorAll('#project-photos-container [id^=\'photo-card-\']').length >= {{ $.RequiredCount }}) { alert('Osiągnięto limit {{ $.RequiredCount }} zdjęć dla tej usługi. Usuń najpierw inne zdjęcie z projektu.'); event.preventDefault(); return false; } this.closest('.relative').style.display='none';"
                     class="w-full py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold text-center mt-2 transition shadow">
                 Dodaj do projektu
             </button>

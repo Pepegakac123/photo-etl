@@ -435,6 +435,7 @@ func (s *Server) handleStockSearch(w http.ResponseWriter, r *http.Request) {
 		"ServiceID: ": id,
 		"ServiceID":   id,
 		"Photos":      filteredPhotos,
+		"RequiredCount": s.cfg.TargetPhotosPerService,
 	}
 
 	err = s.tmpl.ExecuteTemplate(w, "stock_results.html", data)
@@ -478,6 +479,7 @@ func (s *Server) handleGenerateImage(w http.ResponseWriter, r *http.Request) {
 		data = map[string]interface{}{
 			"ServiceID": id,
 			"Error":     err.Error(),
+			"RequiredCount": s.cfg.TargetPhotosPerService,
 		}
 	} else {
 		// Log cost of image generation
@@ -491,6 +493,7 @@ func (s *Server) handleGenerateImage(w http.ResponseWriter, r *http.Request) {
 		data = map[string]interface{}{
 			"ServiceID": id,
 			"FilePath":  outputPath,
+			"RequiredCount": s.cfg.TargetPhotosPerService,
 		}
 	}
 
@@ -550,6 +553,21 @@ func (s *Server) handleRejectPhoto(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.handleWorkspaceUpdate(w, r, photo.ServiceID)
+
+	// Append restoring script
+	if photo != nil && photo.FilePath != "" {
+		_, _ = w.Write([]byte(fmt.Sprintf(`
+			<script>
+				(function() {
+					const path = %q;
+					const el = document.querySelector('[data-photo-path="' + CSS.escape(path) + '"]');
+					if (el) {
+						el.style.display = '';
+					}
+				})();
+			</script>
+		`, photo.FilePath)))
+	}
 }
 
 func (s *Server) handleAddPhoto(w http.ResponseWriter, r *http.Request) {
@@ -559,6 +577,21 @@ func (s *Server) handleAddPhoto(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, "Invalid service ID", http.StatusBadRequest)
 		return
+	}
+
+	// Check photo limit on backend
+	photos, err := s.db.ListPhotosByService(ctx, serviceID)
+	if err == nil {
+		var activeCount int
+		for _, p := range photos {
+			if p.Status != "rejected" {
+				activeCount++
+			}
+		}
+		if activeCount >= s.cfg.TargetPhotosPerService {
+			http.Error(w, fmt.Sprintf("Osiągnięto limit %d zdjęć dla tej usługi", s.cfg.TargetPhotosPerService), http.StatusForbidden)
+			return
+		}
 	}
 
 	srcPath := r.URL.Query().Get("path")
