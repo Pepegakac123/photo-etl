@@ -139,6 +139,13 @@
                             </p>
                         </div>
 
+                        <div class="flex flex-col gap-1.5">
+                            <label for="custom_prompt" class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Prompt / Opis kontekstowy usługi</label>
+                            <textarea id="custom_prompt" name="custom_prompt" rows="3" 
+                                      placeholder="Np. Prace dekarskie, układanie dachówek ceramicznych na dachu skośnym..."
+                                      class="w-full bg-[#0E1524] border border-[#23314B] rounded-lg px-3.5 py-2.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 transition font-sans resize-y">{{ if .Service.ContextDescription }}{{ .Service.ContextDescription }}{{ else }}Prace remontowo-budowlane w zakresie: {{ .Service.Name }}{{ end }}</textarea>
+                        </div>
+
                         <div class="grid grid-cols-2 gap-4">
                             <div class="flex flex-col gap-1.5">
                                 <label for="ai_model" class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Model Generowania</label>

@@ -833,9 +833,18 @@ func (s *Server) handleGenerateImage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Generate description if empty using a quick translation/fallback
-	desc := svc.ContextDescription
-	if desc == "" {
-		desc = fmt.Sprintf("Prace remontowo-budowlane w zakresie: %s", svc.Name)
+	customPrompt := r.FormValue("custom_prompt")
+	var desc string
+	if customPrompt != "" {
+		if customPrompt != svc.ContextDescription {
+			_ = s.db.UpdateServiceContextDescription(ctx, id, customPrompt)
+		}
+		desc = customPrompt
+	} else {
+		desc = svc.ContextDescription
+		if desc == "" {
+			desc = fmt.Sprintf("Prace remontowo-budowlane w zakresie: %s", svc.Name)
+		}
 	}
 
 	// Output generated file to a temporary directory in workspace

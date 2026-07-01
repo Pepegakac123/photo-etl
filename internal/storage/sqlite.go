@@ -412,5 +412,11 @@ func (d *DB) GetGalleryFolder(ctx context.Context, id int64) (*GalleryFolder, er
 	return &f, nil
 }
 
+// UpdateServiceContextDescription updates a service's context description.
+func (d *DB) UpdateServiceContextDescription(ctx context.Context, id int64, desc string) error {
+	_, err := d.db.ExecContext(ctx, "UPDATE services SET context_description = ? WHERE id = ?", desc, id)
+	return err
+}
+
 
 
