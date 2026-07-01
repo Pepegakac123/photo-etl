@@ -61,6 +61,9 @@ func (s *Server) ParseTemplates() error {
 		"multiply": func(a float64, b float64) float64 {
 			return a * b
 		},
+		"hasPrefix": func(s, prefix string) bool {
+			return strings.HasPrefix(s, prefix)
+		},
 	}
 
 	tmpl := template.New("").Funcs(funcMap)
@@ -297,6 +300,15 @@ func (s *Server) handleWorkspaceUpdate(w http.ResponseWriter, r *http.Request, s
 			log.Printf("Template sidebar_button render error: %v", err)
 		}
 	}
+
+	// 4. Render the OOB AI results reset if adding an AI photo
+	if r.URL.Query().Get("source") == "AI" {
+		_, _ = w.Write([]byte(`
+			<div id="ai-gen-results" hx-swap-oob="true" class="grid grid-cols-2 gap-4">
+				<p class="text-sm text-gray-500 col-span-2">Kliknij przycisk powyżej, aby wygenerować zdjęcie za pomocą modelu Imagen.</p>
+			</div>
+		`))
+	}
 }
 
 func (s *Server) handleGallerySearch(w http.ResponseWriter, r *http.Request) {
@@ -325,6 +337,17 @@ func (s *Server) handleGallerySearch(w http.ResponseWriter, r *http.Request) {
 		matches = matches[:3]
 	}
 
+	// Query already added photos to filter duplicates
+	existingPhotos, err := s.db.ListPhotosByService(ctx, id)
+	addedPaths := make(map[string]bool)
+	if err == nil {
+		for _, p := range existingPhotos {
+			if p.Status != "rejected" {
+				addedPaths[p.FilePath] = true
+			}
+		}
+	}
+
 	// Fetch photos for each matched folder
 	type folderMatch struct {
 		Folder *storage.GalleryFolder
@@ -339,14 +362,20 @@ func (s *Server) handleGallerySearch(w http.ResponseWriter, r *http.Request) {
 			log.Printf("Failed to list photos in matched folder %s: %v", m.Folder.FolderName, err)
 			continue
 		}
+		var filteredPhotos []string
+		for _, p := range photos {
+			if !addedPaths[p] {
+				filteredPhotos = append(filteredPhotos, p)
+			}
+		}
 		// limit previews in folder to 6
-		if len(photos) > 6 {
-			photos = photos[:6]
+		if len(filteredPhotos) > 6 {
+			filteredPhotos = filteredPhotos[:6]
 		}
 		results = append(results, folderMatch{
 			Folder: m.Folder,
 			Score:  m.Score,
-			Photos: photos,
+			Photos: filteredPhotos,
 		})
 	}
 
@@ -384,10 +413,28 @@ func (s *Server) handleStockSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Query already added photos to filter duplicates
+	existingPhotos, err := s.db.ListPhotosByService(ctx, id)
+	addedPaths := make(map[string]bool)
+	if err == nil {
+		for _, p := range existingPhotos {
+			if p.Status != "rejected" {
+				addedPaths[p.FilePath] = true
+			}
+		}
+	}
+
+	var filteredPhotos []*stock.EnvatoPhoto
+	for _, p := range photos {
+		if !addedPaths[p.PreviewURL] {
+			filteredPhotos = append(filteredPhotos, p)
+		}
+	}
+
 	data := map[string]interface{}{
 		"ServiceID: ": id,
 		"ServiceID":   id,
-		"Photos":      photos,
+		"Photos":      filteredPhotos,
 	}
 
 	err = s.tmpl.ExecuteTemplate(w, "stock_results.html", data)
@@ -516,43 +563,29 @@ func (s *Server) handleAddPhoto(w http.ResponseWriter, r *http.Request) {
 
 	srcPath := r.URL.Query().Get("path")
 	source := r.URL.Query().Get("source")
-	title := r.URL.Query().Get("title")
-
 	svc, err := s.db.GetService(ctx, serviceID)
 	if err != nil {
 		http.Error(w, "Service not found", http.StatusNotFound)
 		return
 	}
 
-	// Destination path in the client's service directory
-	destDir := filepath.Join(s.clientDir, svc.Name)
-	_ = os.MkdirAll(destDir, 0755)
-
 	var finalPath string
 	if source == "LocalGallery" {
-		filename := filepath.Base(srcPath)
-		finalPath = filepath.Join(destDir, filename)
-		if err := copyFile(srcPath, finalPath); err != nil {
-			http.Error(w, fmt.Sprintf("Failed to copy local photo: %v", err), http.StatusInternalServerError)
-			return
-		}
+		// Store the path directly, copy only during export to make UI instant
+		finalPath = srcPath
 	} else if source == "Stock" {
-		// Download from preview URL
-		filename := fmt.Sprintf("stock_%s_%d.jpg", cleanFilename(title), os.Getpid())
-		finalPath = filepath.Join(destDir, filename)
-		if err := downloadFile(srcPath, finalPath); err != nil {
-			http.Error(w, fmt.Sprintf("Failed to download stock photo: %v", err), http.StatusInternalServerError)
-			return
-		}
+		// Store the preview URL directly, download only during export to make UI instant
+		finalPath = srcPath
 	} else if source == "AI" {
-		// Move/copy from temp file
+		// Copy local temp file immediately to persistent location (local copy is <1ms)
+		destDir := filepath.Join(s.clientDir, svc.Name)
+		_ = os.MkdirAll(destDir, 0755)
 		filename := filepath.Base(srcPath)
 		finalPath = filepath.Join(destDir, filename)
 		if err := copyFile(srcPath, finalPath); err != nil {
 			http.Error(w, fmt.Sprintf("Failed to import generated photo: %v", err), http.StatusInternalServerError)
 			return
 		}
-		// Clean up the temp file
 		_ = os.Remove(srcPath)
 	} else {
 		http.Error(w, "Invalid photo source", http.StatusBadRequest)
@@ -625,9 +658,25 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 
 		for _, p := range photos {
 			if p.Status == "approved" {
-				destPath := filepath.Join(destServiceDir, filepath.Base(p.FilePath))
-				if err := copyFile(p.FilePath, destPath); err == nil {
-					copyCount++
+				// Avoid query parameters in the filename for Stock URL paths
+				filename := filepath.Base(p.FilePath)
+				if p.Source == "Stock" {
+					filename = fmt.Sprintf("stock_%d.jpg", p.ID)
+				}
+				destPath := filepath.Join(destServiceDir, filename)
+
+				if p.Source == "Stock" {
+					if err := downloadFile(p.FilePath, destPath); err != nil {
+						log.Printf("[EXPORT] Failed to download stock photo from %s: %v", p.FilePath, err)
+					} else {
+						copyCount++
+					}
+				} else {
+					if err := copyFile(p.FilePath, destPath); err != nil {
+						log.Printf("[EXPORT] Failed to copy local photo %s: %v", p.FilePath, err)
+					} else {
+						copyCount++
+					}
 				}
 			}
 		}
