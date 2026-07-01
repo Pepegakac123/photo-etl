@@ -42,6 +42,10 @@ func InitDB(dataSourceName string) (*DB, error) {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
+	if dataSourceName == ":memory:" {
+		sqlDB.SetMaxOpenConns(1)
+	}
+
 	// Enable foreign key support
 	if _, err := sqlDB.Exec("PRAGMA foreign_keys = ON;"); err != nil {
 		sqlDB.Close()
@@ -72,6 +76,17 @@ func InitDB(dataSourceName string) (*DB, error) {
 		folder_path TEXT NOT NULL,
 		german_name TEXT NOT NULL,
 		polish_name TEXT NOT NULL
+	);
+
+	CREATE TABLE IF NOT EXISTS api_costs (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		service_name TEXT NOT NULL,
+		operation_type TEXT NOT NULL,
+		model_used TEXT NOT NULL,
+		prompt_tokens INTEGER DEFAULT 0,
+		completion_tokens INTEGER DEFAULT 0,
+		calculated_cost REAL NOT NULL DEFAULT 0.0,
+		timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
 	`
 
@@ -271,6 +286,67 @@ func (d *DB) GetPhoto(ctx context.Context, id int64) (*Photo, error) {
 		return nil, fmt.Errorf("failed to scan photo %d: %w", id, err)
 	}
 	return &p, nil
+}
+
+type APICost struct {
+	ID               int64   `db:"id"`
+	ServiceName      string  `db:"service_name"`
+	OperationType    string  `db:"operation_type"`
+	ModelUsed        string  `db:"model_used"`
+	PromptTokens     int     `db:"prompt_tokens"`
+	CompletionTokens int     `db:"completion_tokens"`
+	CalculatedCost   float64 `db:"calculated_cost"`
+	Timestamp        string  `db:"timestamp"`
+}
+
+// LogCost inserts an API call log and its cost.
+func (d *DB) LogCost(ctx context.Context, serviceName, operationType, modelUsed string, promptTokens, completionTokens int, calculatedCost float64) error {
+	_, err := d.db.ExecContext(ctx, `
+		INSERT INTO api_costs (service_name, operation_type, model_used, prompt_tokens, completion_tokens, calculated_cost)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, serviceName, operationType, modelUsed, promptTokens, completionTokens, calculatedCost)
+	if err != nil {
+		return fmt.Errorf("failed to log API cost: %w", err)
+	}
+	return nil
+}
+
+// GetTotalCosts returns the sum of all logged API costs.
+func (d *DB) GetTotalCosts(ctx context.Context) (float64, error) {
+	var total float64
+	err := d.db.QueryRowContext(ctx, "SELECT COALESCE(SUM(calculated_cost), 0.0) FROM api_costs").Scan(&total)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get total costs: %w", err)
+	}
+	return total, nil
+}
+
+// ListCosts returns all logged API costs.
+func (d *DB) ListCosts(ctx context.Context) ([]*APICost, error) {
+	rows, err := d.db.QueryContext(ctx, "SELECT id, service_name, operation_type, model_used, prompt_tokens, completion_tokens, calculated_cost, strftime('%Y-%m-%d %H:%M:%S', timestamp) FROM api_costs ORDER BY id DESC")
+	if err != nil {
+		return nil, fmt.Errorf("failed to query api costs: %w", err)
+	}
+	defer rows.Close()
+
+	var costs []*APICost
+	for rows.Next() {
+		var c APICost
+		if err := rows.Scan(&c.ID, &c.ServiceName, &c.OperationType, &c.ModelUsed, &c.PromptTokens, &c.CompletionTokens, &c.CalculatedCost, &c.Timestamp); err != nil {
+			return nil, fmt.Errorf("failed to scan api cost row: %w", err)
+		}
+		costs = append(costs, &c)
+	}
+	return costs, nil
+}
+
+// ClearCosts clears all logged API costs.
+func (d *DB) ClearCosts(ctx context.Context) error {
+	_, err := d.db.ExecContext(ctx, "DELETE FROM api_costs")
+	if err != nil {
+		return fmt.Errorf("failed to clear api costs: %w", err)
+	}
+	return nil
 }
 
 

@@ -34,6 +34,51 @@ func (c *BananaClient) SetModel(model string) {
 	c.model = model
 }
 
+func (c *BananaClient) Model() string {
+	return c.model
+}
+
+func (c *BananaClient) TestConnection(ctx context.Context) error {
+	if c.apiKey == "" {
+		return fmt.Errorf("API key is empty")
+	}
+
+	payload := interactionsRequest{
+		Model: c.model,
+		Input: []contentPart{
+			{
+				Type: "text",
+				Text: "ping",
+			},
+		},
+	}
+
+	bodyBytes, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL, bytes.NewBuffer(bodyBytes))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("x-goog-api-key", c.apiKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("interactions API returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
 type contentPart struct {
 	Type string `json:"type"`
 	Text string `json:"text"`

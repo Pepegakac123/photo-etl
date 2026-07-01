@@ -5,13 +5,15 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/Pepegakac123/photo-etl/internal/storage"
 	"golang.org/x/sync/errgroup"
 )
 
 type ImageClassifier interface {
-	ClassifyImage(ctx context.Context, imagePath string, categories []string) (string, error)
+	ClassifyImage(ctx context.Context, imagePath string, categories []string) (string, int, int, error)
+	Model() string
 }
 
 type Sorter struct {
@@ -29,6 +31,17 @@ func NewSorter(db *storage.DB, classifier ImageClassifier, concurrency int) *Sor
 		classifier:  classifier,
 		concurrency: concurrency,
 	}
+}
+
+func calculateOpenAICost(model string, promptTokens, completionTokens int) float64 {
+	inputRate := 0.00000015  // gpt-4o-mini default ($0.15 per 1M)
+	outputRate := 0.00000060 // gpt-4o-mini default ($0.60 per 1M)
+
+	if strings.Contains(strings.ToLower(model), "gpt-4o") && !strings.Contains(strings.ToLower(model), "mini") {
+		inputRate = 0.0000025
+		outputRate = 0.000010
+	}
+	return (float64(promptTokens) * inputRate) + (float64(completionTokens) * outputRate)
 }
 
 // SortScreenshots scans the screenshotsFolder, classifies all images in it,
@@ -74,7 +87,7 @@ func (s *Sorter) SortScreenshots(ctx context.Context, screenshotsFolder string) 
 		filePath := filepath.Join(screenshotsFolder, file.Name())
 
 		g.Go(func() error {
-			category, err := s.classifier.ClassifyImage(ctx, filePath, categories)
+			category, promptTokens, completionTokens, err := s.classifier.ClassifyImage(ctx, filePath, categories)
 			if err != nil {
 				// We log the error but don't stop the whole pipeline unless desired.
 				// However, if we propagate the error, the group fails.
@@ -82,6 +95,11 @@ func (s *Sorter) SortScreenshots(ctx context.Context, screenshotsFolder string) 
 				log.Printf("Failed to classify image %s: %v", filePath, err)
 				return nil
 			}
+
+			// Log the cost to DB
+			modelName := s.classifier.Model()
+			cost := calculateOpenAICost(modelName, promptTokens, completionTokens)
+			_ = s.db.LogCost(ctx, "Vision Sorting (Ingestion)", "vision_sort", modelName, promptTokens, completionTokens, cost)
 
 			if category == "REJECT" {
 				log.Printf("Image %s rejected by AI Vision", filePath)

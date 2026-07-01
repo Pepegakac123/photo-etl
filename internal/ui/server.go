@@ -82,6 +82,12 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("POST /photos/add", s.handleAddPhoto)
 	s.mux.HandleFunc("GET /local-media", s.handleLocalMedia)
 	s.mux.HandleFunc("POST /export", s.handleExport)
+	s.mux.HandleFunc("GET /settings", s.handleSettings)
+	s.mux.HandleFunc("POST /settings/test/gallery", s.handleTestGallery)
+	s.mux.HandleFunc("POST /settings/test/openai", s.handleTestOpenAI)
+	s.mux.HandleFunc("POST /settings/test/gemini", s.handleTestGemini)
+	s.mux.HandleFunc("POST /settings/test/envato", s.handleTestEnvato)
+	s.mux.HandleFunc("POST /settings/costs/clear", s.handleClearCosts)
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -325,6 +331,14 @@ func (s *Server) handleGenerateImage(w http.ResponseWriter, r *http.Request) {
 			"Error":     err.Error(),
 		}
 	} else {
+		// Log cost of image generation
+		modelName := s.bananaClient.Model()
+		cost := 0.067 // default for gemini-3.1-flash-image
+		if modelName == "gemini-3-pro-image" {
+			cost = 0.134
+		}
+		_ = s.db.LogCost(ctx, svc.Name, "image_generation", modelName, 0, 0, cost)
+
 		data = map[string]interface{}{
 			"ServiceID": id,
 			"FilePath":  outputPath,

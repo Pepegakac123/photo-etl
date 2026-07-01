@@ -29,6 +29,42 @@ func NewEnvatoClient(token string) *EnvatoClient {
 	}
 }
 
+func (c *EnvatoClient) Token() string {
+	return c.token
+}
+
+func (c *EnvatoClient) TestConnection(ctx context.Context) error {
+	if c.token == "" {
+		return fmt.Errorf("API token is empty")
+	}
+
+	apiURL := fmt.Sprintf("%s?site=photodune.net&term=construction&page=1&page_size=1", c.baseURL)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusUnauthorized {
+		return fmt.Errorf("Envato API returned unauthorized (invalid token)")
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("Envato API returned status: %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
 type envatoSearchResponse struct {
 	Items []struct {
 		ID       interface{} `json:"id"` // can be float64 or string in JSON

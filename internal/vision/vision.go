@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -61,6 +62,62 @@ type chatCompletionResponse struct {
 			Content string `json:"content"`
 		} `json:"message"`
 	} `json:"choices"`
+	Usage struct {
+		PromptTokens     int `json:"prompt_tokens"`
+		CompletionTokens int `json:"completion_tokens"`
+		TotalTokens      int `json:"total_tokens"`
+	} `json:"usage"`
+}
+
+func (c *Client) Model() string {
+	return c.model
+}
+
+func (c *Client) TestConnection(ctx context.Context) error {
+	if c.apiKey == "" {
+		return fmt.Errorf("API key is empty")
+	}
+
+	reqPayload := chatCompletionRequest{
+		Model: c.model,
+		Messages: []chatMessage{
+			{
+				Role: "user",
+				Content: []chatMessageContent{
+					{
+						Type: "text",
+						Text: "Say OK",
+					},
+				},
+			},
+		},
+	}
+
+	bodyBytes, err := json.Marshal(reqPayload)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL, bytes.NewBuffer(bodyBytes))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("OpenAI API returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
 }
 
 func mimeTypeFromPath(path string) string {
@@ -76,11 +133,11 @@ func mimeTypeFromPath(path string) string {
 }
 
 // ClassifyImage sends an image to the OpenAI Vision API and returns the matched category name or "REJECT".
-func (c *Client) ClassifyImage(ctx context.Context, imagePath string, categories []string) (string, error) {
+func (c *Client) ClassifyImage(ctx context.Context, imagePath string, categories []string) (string, int, int, error) {
 	// Read image and encode to base64
 	data, err := os.ReadFile(imagePath)
 	if err != nil {
-		return "", fmt.Errorf("failed to read image file: %w", err)
+		return "", 0, 0, fmt.Errorf("failed to read image file: %w", err)
 	}
 	base64Image := base64.StdEncoding.EncodeToString(data)
 	mimeType := mimeTypeFromPath(imagePath)
@@ -128,12 +185,12 @@ func (c *Client) ClassifyImage(ctx context.Context, imagePath string, categories
 
 	bodyBytes, err := json.Marshal(reqPayload)
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal request: %w", err)
+		return "", 0, 0, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL, bytes.NewBuffer(bodyBytes))
 	if err != nil {
-		return "", fmt.Errorf("failed to create request: %w", err)
+		return "", 0, 0, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -141,21 +198,21 @@ func (c *Client) ClassifyImage(ctx context.Context, imagePath string, categories
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("failed to send request to OpenAI API: %w", err)
+		return "", 0, 0, fmt.Errorf("failed to send request to OpenAI API: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("unexpected status code from OpenAI API: %d", resp.StatusCode)
+		return "", 0, 0, fmt.Errorf("unexpected status code from OpenAI API: %d", resp.StatusCode)
 	}
 
 	var respPayload chatCompletionResponse
 	if err := json.NewDecoder(resp.Body).Decode(&respPayload); err != nil {
-		return "", fmt.Errorf("failed to decode response: %w", err)
+		return "", 0, 0, fmt.Errorf("failed to decode response: %w", err)
 	}
 
 	if len(respPayload.Choices) == 0 {
-		return "", fmt.Errorf("no choices returned from OpenAI API")
+		return "", 0, 0, fmt.Errorf("no choices returned from OpenAI API")
 	}
 
 	rawContent := respPayload.Choices[0].Message.Content
@@ -165,21 +222,21 @@ func (c *Client) ClassifyImage(ctx context.Context, imagePath string, categories
 		Category string `json:"category"`
 	}
 	if err := json.Unmarshal([]byte(rawContent), &classification); err != nil {
-		return "", fmt.Errorf("failed to parse classification result JSON (%s): %w", rawContent, err)
+		return "", respPayload.Usage.PromptTokens, respPayload.Usage.CompletionTokens, fmt.Errorf("failed to parse classification result JSON (%s): %w", rawContent, err)
 	}
 
 	categoryClean := strings.TrimSpace(classification.Category)
 
 	// Validate category
 	if categoryClean == "REJECT" {
-		return "REJECT", nil
+		return "REJECT", respPayload.Usage.PromptTokens, respPayload.Usage.CompletionTokens, nil
 	}
 
 	for _, cat := range categories {
 		if strings.EqualFold(cat, categoryClean) {
-			return cat, nil // return exact casing matching the service name
+			return cat, respPayload.Usage.PromptTokens, respPayload.Usage.CompletionTokens, nil // return exact casing matching the service name
 		}
 	}
 
-	return "REJECT", nil // Fallback to reject if it is not in the list of categories
+	return "REJECT", respPayload.Usage.PromptTokens, respPayload.Usage.CompletionTokens, nil // Fallback to reject if it is not in the list of categories
 }

@@ -13,12 +13,16 @@ type mockClassifier struct {
 	responses map[string]string
 }
 
-func (m *mockClassifier) ClassifyImage(ctx context.Context, imagePath string, categories []string) (string, error) {
+func (m *mockClassifier) ClassifyImage(ctx context.Context, imagePath string, categories []string) (string, int, int, error) {
 	filename := filepath.Base(imagePath)
 	if resp, ok := m.responses[filename]; ok {
-		return resp, nil
+		return resp, 100, 10, nil
 	}
-	return "REJECT", nil
+	return "REJECT", 50, 5, nil
+}
+
+func (m *mockClassifier) Model() string {
+	return "mock-gpt-model"
 }
 
 func TestSorter(t *testing.T) {

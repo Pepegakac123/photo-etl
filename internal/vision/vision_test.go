@@ -70,7 +70,12 @@ func TestClassifyImage(t *testing.T) {
 						"content": "{\"category\": \"Abbrucharbeiten\"}"
 					}
 				}
-			]
+			],
+			"usage": {
+				"prompt_tokens": 100,
+				"completion_tokens": 10,
+				"total_tokens": 110
+			}
 		}`
 		w.Write([]byte(response))
 	}))
@@ -87,12 +92,16 @@ func TestClassifyImage(t *testing.T) {
 	client.baseURL = server.URL // override base URL for test
 
 	categories := []string{"Abbrucharbeiten", "Fassadenbau"}
-	category, err := client.ClassifyImage(context.Background(), imgPath, categories)
+	category, promptTokens, completionTokens, err := client.ClassifyImage(context.Background(), imgPath, categories)
 	if err != nil {
 		t.Fatalf("ClassifyImage failed: %v", err)
 	}
 
 	if category != "Abbrucharbeiten" {
 		t.Errorf("expected category 'Abbrucharbeiten', got %q", category)
+	}
+
+	if promptTokens != 100 || completionTokens != 10 {
+		t.Errorf("expected promptTokens=100 and completionTokens=10, got %d and %d", promptTokens, completionTokens)
 	}
 }
