@@ -120,13 +120,17 @@ func main() {
 	trans := translateWrapper{}
 	galleryService := gallery.NewService(db, trans, cfg.LocalGalleryPath)
 
-	// Index local gallery at startup if path is set and valid
+	// Index local gallery at startup in the background if path is set and valid
 	if db != nil && cfg.LocalGalleryPath != "" {
 		if _, err := os.Stat(cfg.LocalGalleryPath); err == nil {
-			log.Printf("Indexing local gallery at: %s", cfg.LocalGalleryPath)
-			if err := galleryService.IndexGallery(ctx); err != nil {
-				log.Printf("Error indexing gallery: %v", err)
-			}
+			log.Printf("Indexing local gallery in background at: %s", cfg.LocalGalleryPath)
+			go func() {
+				if err := galleryService.IndexGallery(context.Background()); err != nil {
+					log.Printf("Error indexing gallery in background: %v", err)
+				} else {
+					log.Printf("Local gallery background indexing complete!")
+				}
+			}()
 		} else {
 			log.Printf("WARNING: Local gallery path does not exist: %s. Indexing skipped.", cfg.LocalGalleryPath)
 		}

@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -107,10 +108,12 @@ func (s *Server) handleClientSelect(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Dynamically wznowiono klienta. Znaleziono %d usług w DB.", len(services))
 	}
 
-	// Index gallery
+	// Index gallery in background
 	if s.cfg.LocalGalleryPath != "" {
 		if _, err := os.Stat(s.cfg.LocalGalleryPath); err == nil {
-			_ = s.galleryService.IndexGallery(ctx)
+			go func() {
+				_ = s.galleryService.IndexGallery(context.Background())
+			}()
 		}
 	}
 
