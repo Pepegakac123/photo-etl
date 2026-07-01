@@ -785,7 +785,7 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 			</p>
 			<pre class="bg-[#0E1524] border border-[#23314B] rounded-xl p-4 text-xs font-mono text-left max-w-xl overflow-x-auto text-gray-300 w-full whitespace-pre-wrap">%s</pre>
 		</div>
-	`, copyCount, s.cfg.ExportDir, gopressOutput)))
+	`, copyCount, exportDir, gopressOutput)))
 }
 
 // Helpers

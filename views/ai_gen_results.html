@@ -9,7 +9,7 @@
         <img src="/local-media?path={{ urlEscape .FilePath }}" alt="Generated Image" class="object-cover w-full h-full">
         <button hx-post="/photos/add?service_id={{ .ServiceID }}&path={{ urlEscape .FilePath }}&source=AI" 
                 hx-target="#project-photos-container"
-                onclick="if (document.querySelectorAll('#project-photos-container [id^=\'photo-card-\']').length >= {{ .RequiredCount }}) { alert('Osiągnięto limit {{ .RequiredCount }} zdjęć dla tej usługi. Usuń najpierw inne zdjęcie z projektu.'); event.preventDefault(); return false; }"
+                onclick="if (document.querySelectorAll('#project-photos-container [id^=\'photo-card-\']').length >= {{ .RequiredCount }}) { showToast('Osiągnięto limit {{ .RequiredCount }} zdjęć dla tej usługi. Usuń najpierw inne zdjęcie z projektu.', 'error'); event.preventDefault(); return false; }"
                 class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition duration-150 flex items-center justify-center text-white text-xs font-bold">
             Zaakceptuj i dodaj
         </button>

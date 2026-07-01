@@ -126,6 +126,51 @@
             {{ end }}
         </main>
     </div>
+    <!-- Toast Container -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-3 pointer-events-none"></div>
+    <script>
+        window.showToast = function(message, type = 'error') {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+
+            const toast = document.createElement('div');
+            toast.className = `pointer-events-auto min-w-[300px] max-w-md px-4 py-3 rounded-xl border shadow-lg flex items-center justify-between gap-4 transform translate-y-2 opacity-0 transition-all duration-300 ${
+                type === 'success' 
+                ? 'bg-[#061C15]/95 border-emerald-500/30 text-emerald-300' 
+                : 'bg-[#1F090E]/95 border-rose-500/30 text-rose-300'
+            } backdrop-blur-md glow`;
+
+            // Icon
+            const icon = type === 'success' 
+            ? `<svg class="w-5 h-5 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`
+            : `<svg class="w-5 h-5 text-rose-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>`;
+
+            toast.innerHTML = `
+                <div class="flex items-center gap-2.5">
+                    ${icon}
+                    <span class="text-xs font-semibold font-sans tracking-wide">${message}</span>
+                </div>
+                <button onclick="this.closest('.pointer-events-auto').remove()" class="text-gray-400 hover:text-white transition">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            `;
+
+            container.appendChild(toast);
+
+            // Animate in
+            setTimeout(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            }, 10);
+
+            // Auto-remove after 4 seconds
+            setTimeout(() => {
+                toast.classList.add('translate-y-2', 'opacity-0');
+                setTimeout(() => {
+                    toast.remove();
+                }, 300);
+            }, 4000);
+        };
+    </script>
 </body>
 </html>
 
