@@ -3,16 +3,20 @@
     Błąd generowania: {{ .Error }}
 </div>
 {{ else }}
-<div class="col-span-2 border border-[#23314B] bg-[#0E1524]/60 rounded-xl p-4 space-y-3 flex flex-col items-center">
-    <h4 class="text-xs font-bold text-indigo-400 uppercase tracking-wider">Wygenerowana propozycja:</h4>
-    <div class="aspect-video relative group rounded-xl overflow-hidden border border-[#23314B] bg-black w-full max-w-sm glow">
-        <img src="/local-media?path={{ urlEscape .FilePath }}" alt="Generated Image" class="object-cover w-full h-full">
-        <button hx-post="/photos/add?service_id={{ .ServiceID }}&path={{ urlEscape .FilePath }}&source=AI" 
-                hx-target="#project-photos-container"
-                onclick="if (document.querySelectorAll('#project-photos-container [id^=\'photo-card-\']').length >= {{ .RequiredCount }}) { showToast('Osiągnięto limit {{ .RequiredCount }} zdjęć dla tej usługi. Usuń najpierw inne zdjęcie z projektu.', 'error'); event.preventDefault(); return false; }"
-                class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition duration-150 flex items-center justify-center text-white text-xs font-bold">
-            Zaakceptuj i dodaj
-        </button>
+<div class="col-span-2 border border-[#23314B] bg-[#0E1524]/60 rounded-xl p-4 space-y-3 flex flex-col">
+    <h4 class="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-2">Wygenerowane propozycje AI:</h4>
+    <div class="grid grid-cols-2 gap-4 w-full">
+        {{ range .FilePaths }}
+        <div class="aspect-video relative group rounded-xl overflow-hidden border border-[#23314B] bg-black glow">
+            <img src="/local-media?path={{ urlEscape . }}" alt="Generated Image" class="object-cover w-full h-full group-hover:scale-105 transition duration-200">
+            <button hx-post="/photos/add?service_id={{ $.ServiceID }}&path={{ urlEscape . }}&source=AI" 
+                    hx-target="#project-photos-container"
+                    onclick="if (document.querySelectorAll('#project-photos-container [id^=\'photo-card-\']').length >= {{ $.RequiredCount }}) { showToast('Osiągnięto limit {{ $.RequiredCount }} zdjęć dla tej usługi. Usuń najpierw inne zdjęcie z projektu.', 'error'); event.preventDefault(); return false; } this.closest('.relative').style.display='none';"
+                    class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition duration-150 flex items-center justify-center text-white text-xs font-bold font-sans">
+                Zaakceptuj i dodaj
+            </button>
+        </div>
+        {{ end }}
     </div>
 </div>
 {{ end }}

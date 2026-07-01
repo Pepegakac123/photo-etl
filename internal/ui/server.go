@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/Pepegakac123/photo-etl/internal/config"
 	"github.com/Pepegakac123/photo-etl/internal/gallery"
@@ -490,6 +491,19 @@ func (s *Server) handleGenerateImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	model := r.FormValue("model")
+	if model == "" {
+		model = "gemini-3.1-flash-image"
+	}
+
+	countStr := r.FormValue("count")
+	count := 1
+	if countStr != "" {
+		if c, err := strconv.Atoi(countStr); err == nil && c >= 1 && c <= 5 {
+			count = c
+		}
+	}
+
 	// Generate description if empty using a quick translation/fallback
 	desc := svc.ContextDescription
 	if desc == "" {
@@ -500,32 +514,60 @@ func (s *Server) handleGenerateImage(w http.ResponseWriter, r *http.Request) {
 	tempDir := filepath.Join(s.clientDir, ".temp")
 	_ = os.MkdirAll(tempDir, 0755)
 
-	filename := fmt.Sprintf("generated_%d_%d.png", id, os.Getpid())
-	outputPath := filepath.Join(tempDir, filename)
+	type genResult struct {
+		Path string
+		Err  error
+	}
 
-	err = s.bananaClient.GenerateImage(ctx, svc.Name, "Niemcy", desc, outputPath)
-	
-	var data map[string]interface{}
-	if err != nil {
-		data = map[string]interface{}{
-			"ServiceID": id,
-			"Error":     err.Error(),
-			"RequiredCount": s.cfg.TargetPhotosPerService,
-		}
-	} else {
-		// Log cost of image generation
-		modelName := s.bananaClient.Model()
-		cost := 0.067 // default for gemini-3.1-flash-image
-		if modelName == "gemini-3-pro-image" {
-			cost = 0.134
-		}
-		_ = s.db.LogCost(ctx, svc.Name, "image_generation", modelName, 0, 0, cost)
+	resChan := make(chan genResult, count)
+	var wg sync.WaitGroup
 
-		data = map[string]interface{}{
-			"ServiceID": id,
-			"FilePath":  outputPath,
-			"RequiredCount": s.cfg.TargetPhotosPerService,
+	for i := 0; i < count; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			filename := fmt.Sprintf("generated_%d_%d_%d.png", id, os.Getpid(), idx)
+			outputPath := filepath.Join(tempDir, filename)
+			err := s.bananaClient.GenerateImage(ctx, svc.Name, "Niemcy", desc, model, outputPath)
+			resChan <- genResult{Path: outputPath, Err: err}
+		}(i)
+	}
+
+	wg.Wait()
+	close(resChan)
+
+	var generatedPaths []string
+	var genErrors []error
+	for res := range resChan {
+		if res.Err != nil {
+			genErrors = append(genErrors, res.Err)
+		} else {
+			generatedPaths = append(generatedPaths, res.Path)
+
+			// Log cost of image generation based on selected model
+			var cost float64
+			switch model {
+			case "gemini-3.1-flash-lite-image":
+				cost = 0.015
+			case "gemini-3-pro-image":
+				cost = 0.134
+			default:
+				cost = 0.067
+			}
+			_ = s.db.LogCost(ctx, svc.Name, "image_generation", model, 0, 0, cost)
 		}
+	}
+
+	var errStr string
+	if len(generatedPaths) == 0 && len(genErrors) > 0 {
+		errStr = genErrors[0].Error()
+	}
+
+	data := map[string]interface{}{
+		"ServiceID":     id,
+		"FilePaths":     generatedPaths,
+		"Error":         errStr,
+		"RequiredCount": s.cfg.TargetPhotosPerService,
 	}
 
 	err = s.tmpl.ExecuteTemplate(w, "ai_gen_results.html", data)

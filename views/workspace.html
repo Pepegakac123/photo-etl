@@ -39,7 +39,7 @@
                     Envato Stock
                 </button>
                 <button onclick="switchTab('ai-gen')" id="tab-btn-ai-gen" class="flex-1 pb-3 text-gray-400 hover:text-gray-200 transition duration-150 outline-none">
-                    Generowanie AI (Imagen)
+                    Generowanie AI (Nano Banana)
                 </button>
             </div>
 
@@ -88,27 +88,54 @@
                     <div id="stock-load-more-container" class="flex justify-center py-4"></div>
                 </div>
 
-                <!-- Tab: AI Gen (Imagen) -->
+                <!-- Tab: AI Gen (Nano Banana) -->
                 <div id="tab-content-ai-gen" class="hidden space-y-6">
-                    <div class="p-4 bg-indigo-900/10 border border-indigo-500/20 rounded-xl space-y-3">
-                        <h4 class="text-xs font-bold text-indigo-400 uppercase tracking-wider">Generowanie Zdjęć z AI</h4>
-                        <p class="text-xs text-gray-400 font-medium">
-                            System wygeneruje fotorealistyczne, amatorskie zdjęcie pasujące do kontekstu usługi i kraju klienta. Złota zasada: brak twarzy, brak logotypów, styl surowy z budowy.
-                        </p>
-                        <button hx-post="/services/{{ .Service.ID }}/generate" 
-                                hx-target="#ai-gen-results"
-                                hx-indicator="#ai-indicator"
-                                class="w-full py-2.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-semibold rounded-lg shadow-md hover:shadow-indigo-500/20 transition duration-200 glow-hover text-sm flex items-center justify-center gap-2 font-semibold">
-                            <span>Wygeneruj Zdjęcie</span>
-                            <svg id="ai-indicator" class="animate-spin h-4 w-4 text-white htmx-indicator" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <form hx-post="/services/{{ .Service.ID }}/generate" 
+                          hx-target="#ai-gen-results"
+                          hx-indicator="#ai-indicator"
+                          class="p-5 bg-indigo-900/10 border border-indigo-500/20 rounded-xl space-y-5">
+                        <div class="space-y-1">
+                            <h4 class="text-xs font-bold text-indigo-400 uppercase tracking-wider">Generowanie Zdjęć z AI (Nano Banana)</h4>
+                            <p class="text-[11px] text-gray-400 font-medium leading-relaxed">
+                                System wygeneruje fotorealistyczne, amatorskie zdjęcia pasujące do kontekstu usługi i kraju klienta. Złota zasada: brak twarzy, brak logotypów, styl surowy z budowy.
+                            </p>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="flex flex-col gap-1.5">
+                                <label for="ai_model" class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Model Generowania</label>
+                                <select id="ai_model" name="model" class="bg-[#0E1524] border border-[#23314B] rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 transition font-sans">
+                                    <option value="gemini-3.1-flash-image" selected>Nano Banana 2 (Zalecany)</option>
+                                    <option value="gemini-3.1-flash-lite-image">Nano Banana 2 Lite (Szybki)</option>
+                                    <option value="gemini-3-pro-image">Nano Banana Pro (Kompleksowy)</option>
+                                    <option value="gemini-2.5-flash-image">Nano Banana (Legacy)</option>
+                                </select>
+                            </div>
+
+                            <div class="flex flex-col gap-1.5">
+                                <label for="ai_num_photos" class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Liczba Zdjęć</label>
+                                <select id="ai_num_photos" name="count" class="bg-[#0E1524] border border-[#23314B] rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 transition font-sans">
+                                    <option value="1" selected>1 zdjęcie</option>
+                                    <option value="2">2 zdjęcia</option>
+                                    <option value="3">3 zdjęcia</option>
+                                    <option value="4">4 zdjęcia</option>
+                                    <option value="5">5 zdjęć</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <button type="submit" 
+                                class="w-full py-2.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold rounded-lg shadow-md hover:shadow-indigo-500/20 transition duration-200 glow-hover text-xs flex items-center justify-center gap-2 animate-pulse-subtle">
+                            <span>Generuj Obrazy z AI</span>
+                            <svg id="ai-indicator" class="animate-spin h-3.5 w-3.5 text-white htmx-indicator" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                             </svg>
                         </button>
-                    </div>
+                    </form>
 
                     <div id="ai-gen-results" class="grid grid-cols-2 gap-4">
-                        <p class="text-sm text-gray-500 col-span-2">Kliknij przycisk powyżej, aby wygenerować zdjęcie za pomocą modelu Imagen.</p>
+                        <p class="text-sm text-gray-500 col-span-2">Ustaw powyższe opcje i kliknij przycisk, aby wygenerować zdjęcia za pomocą modelu Nano Banana.</p>
                     </div>
                 </div>
             </div>

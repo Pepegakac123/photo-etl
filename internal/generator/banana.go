@@ -104,10 +104,18 @@ type interactionsResponse struct {
 	Steps []interactionStep `json:"steps"`
 }
 
-func (c *BananaClient) GenerateImage(ctx context.Context, serviceName, clientCountry, serviceDescription, outputPath string) error {
+func (c *BananaClient) GenerateImage(ctx context.Context, serviceName, clientCountry, serviceDescription, modelName, outputPath string) error {
 	// If no API key is set, output a mock development image
 	if c.apiKey == "" {
 		return c.writeMockImage(outputPath)
+	}
+
+	modelToUse := modelName
+	if modelToUse == "" {
+		modelToUse = c.model
+	}
+	if modelToUse == "" {
+		modelToUse = "gemini-3.1-flash-image"
 	}
 
 	prompt := fmt.Sprintf(
@@ -116,7 +124,7 @@ func (c *BananaClient) GenerateImage(ctx context.Context, serviceName, clientCou
 	)
 
 	payload := interactionsRequest{
-		Model: c.model,
+		Model: modelToUse,
 		Input: []contentPart{
 			{
 				Type: "text",
