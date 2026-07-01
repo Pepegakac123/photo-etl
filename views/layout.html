@@ -78,19 +78,12 @@
                 </svg>
                 <span>Konfiguracja & Koszty</span>
             </button>
-            <button hx-post="/export" 
-                    hx-target="#workspace-container"
-                    hx-indicator="#global-indicator" 
+            <button onclick="startExport()" 
                     class="px-3.5 py-1.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-semibold rounded-lg shadow-md hover:shadow-indigo-500/20 transition duration-200 glow-hover text-xs flex items-center justify-center gap-2">
                 <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
                 </svg>
                 <span>Eksportuj do GoPress</span>
-                <!-- spinner -->
-                <svg id="global-indicator" class="animate-spin h-3.5 w-3.5 text-white htmx-indicator" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
             </button>
         </div>
     </header>
@@ -170,7 +163,137 @@
                 }, 300);
             }, 4000);
         };
+
+        window.startExport = function() {
+            const modal = document.getElementById('export-modal');
+            const statusText = document.getElementById('export-status-text');
+            const percentText = document.getElementById('export-progress-percent');
+            const progressBar = document.getElementById('export-progress-bar');
+            const consoleDiv = document.getElementById('export-console');
+            const closeBtn = document.getElementById('export-modal-close-btn');
+            const actionsDiv = document.getElementById('export-modal-actions');
+
+            // Reset UI
+            statusText.innerText = "Nawiązywanie połączenia...";
+            percentText.innerText = "0%";
+            progressBar.style.width = "0%";
+            consoleDiv.innerHTML = '<div class="text-indigo-400 font-bold">[SYSTEM] Inicjalizacja strumienia eksportu...</div>';
+            closeBtn.disabled = true;
+            actionsDiv.classList.add('hidden');
+            modal.classList.remove('hidden');
+
+            // Establish EventSource
+            const eventSource = new EventSource('/export/stream');
+
+            eventSource.addEventListener('progress', function(e) {
+                const percent = e.data;
+                percentText.innerText = percent + "%";
+                progressBar.style.width = percent + "%";
+            });
+
+            eventSource.addEventListener('status', function(e) {
+                statusText.innerText = e.data;
+            });
+
+            eventSource.addEventListener('log', function(e) {
+                const line = document.createElement('div');
+                line.innerText = e.data;
+                if (e.data.startsWith('[ERR]') || e.data.startsWith('  [ERR]') || e.data.includes('error') || e.data.includes('Error')) {
+                    line.className = 'text-rose-400';
+                } else if (e.data.startsWith('[OK]') || e.data.startsWith('  [OK]') || e.data.includes('complete') || e.data.includes('powodzeniem')) {
+                    line.className = 'text-emerald-400';
+                } else if (e.data.startsWith('[SYSTEM]')) {
+                    line.className = 'text-indigo-400 font-bold';
+                }
+                consoleDiv.appendChild(line);
+                consoleDiv.scrollTop = consoleDiv.scrollHeight;
+            });
+
+            eventSource.addEventListener('complete', function(e) {
+                statusText.innerText = "Eksport zakończony!";
+                percentText.innerText = "100%";
+                progressBar.style.width = "100%";
+                
+                const line = document.createElement('div');
+                line.className = 'text-emerald-400 font-bold mt-2';
+                line.innerText = '[SYSTEM] Proces zakończony powodzeniem.';
+                consoleDiv.appendChild(line);
+                consoleDiv.scrollTop = consoleDiv.scrollHeight;
+
+                // Enable close
+                closeBtn.disabled = false;
+                actionsDiv.classList.remove('hidden');
+                eventSource.close();
+            });
+
+            eventSource.addEventListener('error', function(e) {
+                if (eventSource.readyState === EventSource.CLOSED) {
+                    return;
+                }
+                statusText.innerText = "Błąd połączenia";
+                const line = document.createElement('div');
+                line.className = 'text-rose-400 font-bold mt-2';
+                line.innerText = '[SYSTEM] Błąd połączenia ze strumieniem eksportu.';
+                consoleDiv.appendChild(line);
+                consoleDiv.scrollTop = consoleDiv.scrollHeight;
+
+                closeBtn.disabled = false;
+                actionsDiv.classList.remove('hidden');
+                eventSource.close();
+            });
+        };
+
+        window.closeExportModal = function() {
+            const modal = document.getElementById('export-modal');
+            modal.classList.add('hidden');
+        };
     </script>
+
+    <!-- Export Modal -->
+    <div id="export-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm hidden transition-all duration-300">
+        <div class="glass border border-[#23314B] rounded-2xl w-full max-w-2xl p-6 space-y-4 shadow-2xl relative flex flex-col max-h-[85vh] glow animate-fadeIn">
+            
+            <!-- Header -->
+            <div class="flex items-center justify-between border-b border-[#23314B] pb-3 shrink-0">
+                <h3 class="text-sm font-bold text-gray-100 uppercase tracking-wider flex items-center gap-2">
+                    <svg class="w-5 h-5 text-indigo-400 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                    </svg>
+                    Eksport Projektu do GoPress
+                </h3>
+                <button onclick="closeExportModal()" class="text-gray-400 hover:text-white transition" id="export-modal-close-btn" disabled>
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Progress Section -->
+            <div class="space-y-2 shrink-0">
+                <div class="flex items-center justify-between text-xs">
+                    <span class="text-gray-400 font-medium" id="export-status-text">Inicjalizacja eksportu...</span>
+                    <span class="text-indigo-400 font-extrabold font-mono" id="export-progress-percent">0%</span>
+                </div>
+                <!-- Progress Bar -->
+                <div class="w-full bg-[#0E1524] h-2.5 rounded-full overflow-hidden border border-[#23314B]">
+                    <div id="export-progress-bar" class="bg-gradient-to-r from-indigo-500 to-violet-500 h-full rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <!-- Terminal Console -->
+            <div class="flex-1 min-h-0 bg-black/50 border border-[#23314B] rounded-xl p-4 font-mono text-[11px] text-gray-300 overflow-y-auto space-y-1.5 leading-relaxed selection:bg-indigo-500/30 select-text min-h-[250px]" id="export-console">
+                <div class="text-gray-500">// Oczekiwanie na uruchomienie strumienia...</div>
+            </div>
+
+            <!-- Action Button (only visible when complete) -->
+            <div id="export-modal-actions" class="pt-3 border-t border-[#23314B] flex justify-end shrink-0 hidden">
+                <button onclick="closeExportModal()" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg transition shadow">
+                    Zamknij
+                </button>
+            </div>
+
+        </div>
+    </div>
 </body>
 </html>
 

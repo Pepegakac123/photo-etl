@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"html/template"
@@ -89,6 +90,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("POST /photos/add", s.handleAddPhoto)
 	s.mux.HandleFunc("GET /local-media", s.handleLocalMedia)
 	s.mux.HandleFunc("POST /export", s.handleExport)
+	s.mux.HandleFunc("GET /export/stream", s.handleExportStream)
 	s.mux.HandleFunc("GET /settings", s.handleSettings)
 	s.mux.HandleFunc("POST /settings/test/gallery", s.handleTestGallery)
 	s.mux.HandleFunc("POST /settings/test/openai", s.handleTestOpenAI)
@@ -891,4 +893,182 @@ func cleanFilename(title string) string {
 		clean = clean[:30]
 	}
 	return string(clean)
+}
+
+func (s *Server) handleExportStream(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Set SSE headers
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+
+	send := func(event, data string) {
+		_, _ = fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, data)
+		flusher.Flush()
+	}
+
+	sendLog := func(msg string) {
+		send("log", msg)
+	}
+
+	sendProgress := func(pct int, status string) {
+		send("progress", strconv.Itoa(pct))
+		send("status", status)
+	}
+
+	sendLog("[SYSTEM] Uruchamianie procesu eksportu...")
+	sendProgress(5, "Inicjalizacja katalogów...")
+
+	exportDir := s.getExportDir()
+	sendLog(fmt.Sprintf("[SYSTEM] Katalog docelowy eksportu: %s", exportDir))
+
+	// Clear export directory first
+	_ = os.RemoveAll(exportDir)
+	_ = os.MkdirAll(exportDir, 0755)
+
+	services, err := s.db.ListServices(ctx)
+	if err != nil {
+		sendLog(fmt.Sprintf("[ERR] Błąd pobierania usług z bazy: %v", err))
+		return
+	}
+
+	if len(services) == 0 {
+		sendLog("[ERR] Brak zarejestrowanych usług w projekcie.")
+		return
+	}
+
+	sendLog(fmt.Sprintf("[SYSTEM] Znaleziono %d zarejestrowanych usług w bazie danych.", len(services)))
+	sendProgress(10, "Kopiowanie i pobieranie zdjęć...")
+
+	totalSteps := len(services)
+	var copyCount int
+
+	for index, svc := range services {
+		progressPct := 10 + int(float64(index)/float64(totalSteps)*60.0) // 10% to 70%
+		sendProgress(progressPct, fmt.Sprintf("Przetwarzanie usługi: %s...", svc.Name))
+
+		photos, err := s.db.ListPhotosByService(ctx, svc.ID)
+		if err != nil {
+			sendLog(fmt.Sprintf("  [ERR] Błąd listowania zdjęć dla usługi %s: %v", svc.Name, err))
+			continue
+		}
+
+		destServiceDir := filepath.Join(exportDir, svc.Name)
+		_ = os.MkdirAll(destServiceDir, 0755)
+
+		approvedPhotos := 0
+		for _, p := range photos {
+			if p.Status == "approved" {
+				approvedPhotos++
+				// Avoid query parameters in the filename for Stock URL paths
+				filename := filepath.Base(p.FilePath)
+				if p.Source == "Stock" {
+					filename = fmt.Sprintf("stock_%d.jpg", p.ID)
+				}
+				destPath := filepath.Join(destServiceDir, filename)
+
+				if p.Source == "Stock" {
+					sendLog(fmt.Sprintf("  -> Pobieranie zdjęcia stockowego: %s ...", filename))
+					if err := downloadFile(p.FilePath, destPath); err != nil {
+						sendLog(fmt.Sprintf("  [ERR] Błąd pobierania stocku z %s: %v", p.FilePath, err))
+					} else {
+						sendLog(fmt.Sprintf("  [OK] Pomyślnie pobrano: %s", filename))
+						copyCount++
+					}
+				} else {
+					sendLog(fmt.Sprintf("  -> Kopiowanie zdjęcia lokalnego: %s ...", filename))
+					if err := copyFile(p.FilePath, destPath); err != nil {
+						sendLog(fmt.Sprintf("  [ERR] Błąd kopiowania pliku %s: %v", p.FilePath, err))
+					} else {
+						sendLog(fmt.Sprintf("  [OK] Skopiowano do: %s", filename))
+						copyCount++
+					}
+				}
+			}
+		}
+		sendLog(fmt.Sprintf("[SYSTEM] Zakończono przetwarzanie usługi %s. Zatwierdzonych zdjęć: %d.", svc.Name, approvedPhotos))
+	}
+
+	sendLog(fmt.Sprintf("[SYSTEM] Eksport plików zakończony. Wyeksportowano łącznie %d zdjęć.", copyCount))
+	sendProgress(70, "Uruchamianie optymalizacji GoPress...")
+
+	// Execute GoPress CLI if configured
+	if s.cfg.GopressCmdPath != "" {
+		if _, err := os.Stat(s.cfg.GopressCmdPath); err == nil {
+			args := []string{"-i", exportDir}
+			if s.cfg.GopressUpload {
+				args = append(args, "--upload")
+				if s.cfg.GopressWpDomain != "" {
+					args = append(args, "--wp-domain", s.cfg.GopressWpDomain)
+				}
+				if s.cfg.GopressWpUser != "" {
+					args = append(args, "--wp-user", s.cfg.GopressWpUser)
+				}
+				if s.cfg.GopressWpSecret != "" {
+					args = append(args, "--wp-secret", s.cfg.GopressWpSecret)
+				}
+				if s.cfg.GopressFbToken != "" {
+					args = append(args, "--fb-token", s.cfg.GopressFbToken)
+				}
+			}
+			sendLog(fmt.Sprintf("[SYSTEM] Uruchamianie GoPress CLI: %s %s", s.cfg.GopressCmdPath, strings.Join(args, " ")))
+			sendProgress(75, "Optymalizacja obrazów w GoPress...")
+
+			cmd := exec.CommandContext(ctx, s.cfg.GopressCmdPath, args...)
+
+			stdoutPipe, err := cmd.StdoutPipe()
+			if err != nil {
+				sendLog(fmt.Sprintf("Błąd pipe stdout GoPress: %v", err))
+			}
+			stderrPipe, err := cmd.StderrPipe()
+			if err != nil {
+				sendLog(fmt.Sprintf("Błąd pipe stderr GoPress: %v", err))
+			}
+
+			if err := cmd.Start(); err != nil {
+				sendLog(fmt.Sprintf("GoPress error: failed to start command: %v", err))
+			} else {
+				var wg sync.WaitGroup
+				scanLog := func(r io.Reader) {
+					defer wg.Done()
+					scanner := bufio.NewScanner(r)
+					for scanner.Scan() {
+						line := scanner.Text()
+						sendLog(line)
+					}
+				}
+
+				if stdoutPipe != nil {
+					wg.Add(1)
+					go scanLog(stdoutPipe)
+				}
+				if stderrPipe != nil {
+					wg.Add(1)
+					go scanLog(stderrPipe)
+				}
+
+				wg.Wait()
+				if err := cmd.Wait(); err != nil {
+					sendLog(fmt.Sprintf("GoPress error: CLI exited with error: %v", err))
+				} else {
+					sendLog("[SYSTEM] GoPress CLI zakończył działanie pomyślnie.")
+				}
+			}
+		} else {
+			sendLog(fmt.Sprintf("GoPress CLI executable not found at: %s", s.cfg.GopressCmdPath))
+		}
+	} else {
+		sendLog("[SYSTEM] GoPress CLI not configured. Skipping GoPress upload/optimization step.")
+	}
+
+	sendProgress(100, "Zakończono!")
+	send("complete", "done")
 }
