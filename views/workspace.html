@@ -92,6 +92,7 @@
                 <div id="tab-content-ai-gen" class="hidden space-y-6">
                     <form hx-post="/services/{{ .Service.ID }}/generate" 
                           hx-target="#ai-gen-results"
+                          hx-swap="beforeend"
                           hx-indicator="#ai-indicator"
                           class="p-5 bg-indigo-900/10 border border-indigo-500/20 rounded-xl space-y-5">
                         <div class="space-y-1">
@@ -135,7 +136,7 @@
                     </form>
 
                     <div id="ai-gen-results" class="grid grid-cols-2 gap-4">
-                        <p class="text-sm text-gray-500 col-span-2">Ustaw powyższe opcje i kliknij przycisk, aby wygenerować zdjęcia za pomocą modelu Nano Banana.</p>
+                        <p id="ai-placeholder" class="text-sm text-gray-500 col-span-2">Ustaw powyższe opcje i kliknij przycisk, aby wygenerować zdjęcia za pomocą modelu Nano Banana.</p>
                     </div>
                 </div>
             </div>
