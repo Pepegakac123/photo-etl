@@ -27,7 +27,15 @@ type Photo struct {
 	Status    string `db:"status"` // pending, approved, rejected
 }
 
-// InitDB opens a connection to the SQLite database and initializes the tables services and photos.
+type GalleryFolder struct {
+	ID         int64  `db:"id"`
+	FolderName string `db:"folder_name"`
+	FolderPath string `db:"folder_path"`
+	GermanName string `db:"german_name"`
+	PolishName string `db:"polish_name"`
+}
+
+// InitDB opens a connection to the SQLite database and initializes the tables services, photos, and gallery_folders.
 func InitDB(dataSourceName string) (*DB, error) {
 	sqlDB, err := sql.Open("sqlite", dataSourceName)
 	if err != nil {
@@ -57,7 +65,16 @@ func InitDB(dataSourceName string) (*DB, error) {
 		status TEXT NOT NULL DEFAULT 'pending',
 		FOREIGN KEY(service_id) REFERENCES services(id) ON DELETE CASCADE
 	);
+
+	CREATE TABLE IF NOT EXISTS gallery_folders (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		folder_name TEXT UNIQUE NOT NULL,
+		folder_path TEXT NOT NULL,
+		german_name TEXT NOT NULL,
+		polish_name TEXT NOT NULL
+	);
 	`
+
 	if _, err := sqlDB.Exec(schema); err != nil {
 		sqlDB.Close()
 		return nil, fmt.Errorf("failed to initialize schema: %w", err)
@@ -204,4 +221,45 @@ func (d *DB) GetServiceProgress(ctx context.Context) ([]*ServiceProgress, error)
 	}
 	return progress, nil
 }
+
+// CreateGalleryFolder inserts a new gallery folder and returns its ID.
+func (d *DB) CreateGalleryFolder(ctx context.Context, folderName, folderPath, germanName, polishName string) (int64, error) {
+	res, err := d.db.ExecContext(ctx, "INSERT OR IGNORE INTO gallery_folders (folder_name, folder_path, german_name, polish_name) VALUES (?, ?, ?, ?)", folderName, folderPath, germanName, polishName)
+	if err != nil {
+		return 0, fmt.Errorf("failed to insert gallery folder %s: %w", folderName, err)
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get last insert ID for gallery folder: %w", err)
+	}
+	// If INSERT OR IGNORE ignored it, res.LastInsertId() might be 0. Look it up.
+	if id == 0 {
+		var existingID int64
+		err := d.db.QueryRowContext(ctx, "SELECT id FROM gallery_folders WHERE folder_name = ?", folderName).Scan(&existingID)
+		if err == nil {
+			return existingID, nil
+		}
+	}
+	return id, nil
+}
+
+// ListGalleryFolders returns all indexed gallery folders.
+func (d *DB) ListGalleryFolders(ctx context.Context) ([]*GalleryFolder, error) {
+	rows, err := d.db.QueryContext(ctx, "SELECT id, folder_name, folder_path, german_name, polish_name FROM gallery_folders")
+	if err != nil {
+		return nil, fmt.Errorf("failed to query gallery folders: %w", err)
+	}
+	defer rows.Close()
+
+	var folders []*GalleryFolder
+	for rows.Next() {
+		var f GalleryFolder
+		if err := rows.Scan(&f.ID, &f.FolderName, &f.FolderPath, &f.GermanName, &f.PolishName); err != nil {
+			return nil, fmt.Errorf("failed to scan gallery folder row: %w", err)
+		}
+		folders = append(folders, &f)
+	}
+	return folders, nil
+}
+
 

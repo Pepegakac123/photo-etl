@@ -242,3 +242,45 @@ func TestServiceProgress(t *testing.T) {
 		t.Errorf("expected 0 pending for Fassadenbau, got %d", p2.PendingCount)
 	}
 }
+
+func TestGalleryFolderOperations(t *testing.T) {
+	db, err := InitDB(":memory:")
+	if err != nil {
+		t.Fatalf("failed to initialize db: %v", err)
+	}
+	defer db.Close()
+
+	ctx := t.Context()
+
+	// 1. Check schema (table existence)
+	checkTableColumns(t, db.db, "gallery_folders", map[string]string{
+		"id":          "INTEGER",
+		"folder_name": "TEXT",
+		"folder_path": "TEXT",
+		"german_name": "TEXT",
+		"polish_name": "TEXT",
+	})
+
+	// 2. Insert gallery folders
+	id, err := db.CreateGalleryFolder(ctx, "Badsanierung_Remont łazienki", "/path/to/bad", "Badsanierung", "Remont łazienki")
+	if err != nil {
+		t.Fatalf("failed to create gallery folder: %v", err)
+	}
+	if id == 0 {
+		t.Fatal("expected non-zero ID")
+	}
+
+	// 3. List gallery folders
+	folders, err := db.ListGalleryFolders(ctx)
+	if err != nil {
+		t.Fatalf("failed to list gallery folders: %v", err)
+	}
+	if len(folders) != 1 {
+		t.Fatalf("expected 1 folder, got %d", len(folders))
+	}
+	f := folders[0]
+	if f.FolderName != "Badsanierung_Remont łazienki" || f.GermanName != "Badsanierung" || f.PolishName != "Remont łazienki" {
+		t.Errorf("unexpected folder attributes: %+v", f)
+	}
+}
+
