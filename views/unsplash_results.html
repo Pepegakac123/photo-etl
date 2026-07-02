@@ -1,0 +1,38 @@
+{{ if not .Photos }}
+    {{ if eq .Page 1 }}
+    <p class="text-sm text-gray-500 col-span-2">Nie znaleziono żadnych zdjęć w banku Unsplash.</p>
+    {{ end }}
+{{ else }}
+    {{ range .Photos }}
+    <div class="relative group rounded-xl overflow-hidden border border-[#23314B] bg-black aspect-video glow" data-photo-path="{{ .PreviewURL }}">
+        <img src="{{ .PreviewURL }}" alt="{{ .Title }}" class="object-cover w-full h-full group-hover:scale-105 transition duration-200">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/35 to-transparent p-3 flex flex-col justify-between opacity-0 group-hover:opacity-100 transition duration-150">
+            <span class="text-[10px] text-gray-200 font-bold truncate">{{ .Title }}</span>
+            <button hx-post="/photos/add?service_id={{ $.ServiceID }}&path={{ urlEscape .FullURL }}&source=Stock&title={{ urlEscape .Title }}" 
+                    hx-target="#project-photos-container"
+                    onclick="this.closest('.relative').style.display='none';"
+                    class="w-full py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold text-center mt-2 transition shadow">
+                Dodaj do projektu
+            </button>
+        </div>
+    </div>
+    {{ end }}
+
+    <!-- Load More Button (Out of Band Swap) -->
+    <div id="unsplash-load-more-container" hx-swap-oob="true" class="flex justify-center py-4 w-full col-span-2">
+        <button hx-post="/services/{{ .ServiceID }}/stock/search?page={{ .NextPage }}&term={{ urlEscape .Term }}&provider=unsplash"
+                hx-target="#unsplash-results"
+                hx-swap="beforeend"
+                hx-indicator="#unsplash-load-more-indicator"
+                class="px-5 py-2.5 bg-[#1C2638] hover:bg-[#25324A] text-gray-300 hover:text-white text-xs font-bold rounded-lg transition flex items-center gap-2 font-sans shadow-md border border-[#23314B]">
+            <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 13l-7 7-7-7m14-6l-7 7-7-7"></path>
+            </svg>
+            <span>Załaduj więcej zdjęć</span>
+            <svg id="unsplash-load-more-indicator" class="animate-spin h-3.5 w-3.5 text-white htmx-indicator" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+        </button>
+    </div>
+{{ end }}

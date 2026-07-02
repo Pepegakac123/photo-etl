@@ -36,6 +36,7 @@ type Server struct {
 	galleryService *gallery.Service
 	bananaClient   *generator.BananaClient
 	envatoClient   *stock.EnvatoClient
+	unsplashClient *stock.UnsplashClient
 	clientDir      string
 	templatesDir   string
 	tmpl           *template.Template
@@ -50,6 +51,7 @@ func NewServer(db *storage.DB, cfg *config.Config, configPath string, gs *galler
 		galleryService: gs,
 		bananaClient:   bc,
 		envatoClient:   ec,
+		unsplashClient: stock.NewUnsplashClient(cfg.UnsplashAccessKey),
 		clientDir:      clientDir,
 		templatesDir:   "views",
 		mux:            http.NewServeMux(),
@@ -107,6 +109,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("POST /settings/test/openai", s.handleTestOpenAI)
 	s.mux.HandleFunc("POST /settings/test/gemini", s.handleTestGemini)
 	s.mux.HandleFunc("POST /settings/test/envato", s.handleTestEnvato)
+	s.mux.HandleFunc("POST /settings/test/unsplash", s.handleTestUnsplash)
 	s.mux.HandleFunc("POST /settings/costs/clear", s.handleClearCosts)
 	s.mux.HandleFunc("POST /client/select", s.handleClientSelect)
 	s.mux.HandleFunc("GET /client/sort-screenshots/stream", s.handleSortScreenshotsStream)
@@ -885,7 +888,15 @@ func (s *Server) handleStockSearch(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	photos, err := s.envatoClient.SearchPhotos(ctx, term, page, 10)
+	provider := r.URL.Query().Get("provider")
+
+	var photos []*stock.EnvatoPhoto
+	if provider == "unsplash" {
+		photos, err = s.unsplashClient.SearchPhotos(ctx, term, page, 10)
+	} else {
+		photos, err = s.envatoClient.SearchPhotos(ctx, term, page, 10)
+	}
+
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Stock search failed: %v", err), http.StatusInternalServerError)
 		return
@@ -919,7 +930,12 @@ func (s *Server) handleStockSearch(w http.ResponseWriter, r *http.Request) {
 		"Term":          term,
 	}
 
-	err = s.tmpl.ExecuteTemplate(w, "stock_results.html", data)
+	templateName := "stock_results.html"
+	if provider == "unsplash" {
+		templateName = "unsplash_results.html"
+	}
+
+	err = s.tmpl.ExecuteTemplate(w, templateName, data)
 	if err != nil {
 		log.Printf("Template stock_results render error: %v", err)
 	}

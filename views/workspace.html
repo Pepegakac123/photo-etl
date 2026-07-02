@@ -38,6 +38,9 @@
                 <button onclick="switchTab('envato-stock')" id="tab-btn-envato-stock" class="flex-1 pb-3 text-gray-400 hover:text-gray-200 transition duration-150 outline-none">
                     Envato Stock
                 </button>
+                <button onclick="switchTab('unsplash-stock')" id="tab-btn-unsplash-stock" class="flex-1 pb-3 text-gray-400 hover:text-gray-200 transition duration-150 outline-none">
+                    Unsplash Stock
+                </button>
                 <button onclick="switchTab('ai-gen')" id="tab-btn-ai-gen" class="flex-1 pb-3 text-gray-400 hover:text-gray-200 transition duration-150 outline-none">
                     Generowanie AI (Nano Banana)
                 </button>
@@ -166,6 +169,28 @@
                     <div id="stock-load-more-container" class="flex justify-center py-4"></div>
                 </div>
 
+                <!-- Tab: Unsplash Stock -->
+                <div id="tab-content-unsplash-stock" class="hidden space-y-6">
+                    <form hx-post="/services/{{ .Service.ID }}/stock/search?provider=unsplash" 
+                          hx-target="#unsplash-results"
+                          hx-indicator="#unsplash-indicator"
+                          class="flex gap-2">
+                        <input type="text" name="term" value="{{ .EnglishName }}" placeholder="Np. bathroom renovation" class="flex-1 bg-[#0E1524] border border-[#23314B] rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500 transition">
+                        <button type="submit" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg shadow transition text-sm flex items-center gap-2">
+                            <span>Szukaj</span>
+                            <svg id="unsplash-indicator" class="animate-spin h-4 w-4 text-white htmx-indicator" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                        </button>
+                    </form>
+
+                    <div id="unsplash-results" class="grid grid-cols-2 gap-4">
+                        <p class="text-sm text-gray-500 col-span-2">Wyszukaj darmowe zdjęcia stockowe (bez watermarka) w banku Unsplash.</p>
+                    </div>
+                    <div id="unsplash-load-more-container" class="flex justify-center py-4"></div>
+                </div>
+
                 <!-- Tab: AI Gen (Nano Banana) -->
                 <div id="tab-content-ai-gen" class="hidden space-y-6">
                     <form hx-post="/services/{{ .Service.ID }}/generate" 
@@ -263,10 +288,11 @@
         // Hide all tab contents
         document.getElementById('tab-content-local-gallery').classList.add('hidden');
         document.getElementById('tab-content-envato-stock').classList.add('hidden');
+        document.getElementById('tab-content-unsplash-stock').classList.add('hidden');
         document.getElementById('tab-content-ai-gen').classList.add('hidden');
 
         // Reset active tab button styles
-        const tabs = ['local-gallery', 'envato-stock', 'ai-gen'];
+        const tabs = ['local-gallery', 'envato-stock', 'unsplash-stock', 'ai-gen'];
         tabs.forEach(t => {
             const btn = document.getElementById('tab-btn-' + t);
             btn.classList.remove('text-indigo-400', 'border-b-2', 'border-indigo-500');

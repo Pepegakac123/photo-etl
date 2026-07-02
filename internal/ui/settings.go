@@ -40,6 +40,7 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		"MaskedOpenAIKey":       maskKey(s.cfg.OpenAIApiKey),
 		"MaskedNanoBananaKey":   maskKey(s.cfg.NanoBananaKey),
 		"MaskedEnvatoToken":     maskKey(s.cfg.EnvatoApiToken),
+		"MaskedUnsplashKey":     maskKey(s.cfg.UnsplashAccessKey),
 		"MaskedGopressWpSecret": maskKey(s.cfg.GopressWpSecret),
 		"MaskedGopressFbToken":  maskKey(s.cfg.GopressFbToken),
 		"DefaultExportDir":      s.getExportDir(),
@@ -161,6 +162,26 @@ func (s *Server) handleTestEnvato(w http.ResponseWriter, r *http.Request) {
 	renderTestResult(w, true, "Połączenie udane. Token jest ważny.")
 }
 
+func (s *Server) handleTestUnsplash(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if s.cfg.UnsplashAccessKey == "" {
+		renderTestResult(w, false, "Klucz dostępu Unsplash jest pusty (aplikacja działa w trybie Mock)")
+		return
+	}
+
+	err := s.unsplashClient.TestConnection(r.Context())
+	if err != nil {
+		renderTestResult(w, false, fmt.Sprintf("Błąd połączenia: %v", err))
+		return
+	}
+
+	renderTestResult(w, true, "Połączenie udane. Klucz jest ważny.")
+}
+
 func (s *Server) handleClearCosts(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -189,6 +210,7 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 	openaiApiKey := r.FormValue("openai_api_key")
 	aiVisionModel := r.FormValue("ai_vision_model")
 	envatoApiToken := r.FormValue("envato_api_token")
+	unsplashAccessKey := r.FormValue("unsplash_access_key")
 	nanoBananaKey := r.FormValue("nano_banana_key")
 	imageGenPrompt := r.FormValue("image_generation_base_prompt")
 	gopressUploadStr := r.FormValue("gopress_upload")
@@ -209,6 +231,7 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 	s.cfg.OpenAIApiKey = openaiApiKey
 	s.cfg.AiVisionModel = aiVisionModel
 	s.cfg.EnvatoApiToken = envatoApiToken
+	s.cfg.UnsplashAccessKey = unsplashAccessKey
 	s.cfg.NanoBananaKey = nanoBananaKey
 	s.cfg.ImageGenerationBasePrompt = imageGenPrompt
 	s.cfg.GopressUpload = gopressUploadStr == "true" || gopressUploadStr == "on"
@@ -219,6 +242,7 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 
 	s.bananaClient = generator.NewBananaClient(s.cfg.NanoBananaKey, s.cfg.ImageGenerationBasePrompt)
 	s.envatoClient = stock.NewEnvatoClient(s.cfg.EnvatoApiToken)
+	s.unsplashClient = stock.NewUnsplashClient(s.cfg.UnsplashAccessKey)
 	s.galleryService.SetLocalGalleryPath(localGalleryPath) // We will add this getter/setter in matcher.go if needed
 
 	configData, err := yaml.Marshal(s.cfg)

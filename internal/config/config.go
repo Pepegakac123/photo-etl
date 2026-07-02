@@ -30,6 +30,7 @@ type Config struct {
 	OpenAIApiKey              string `yaml:"openai_api_key"`
 	AiVisionModel             string `yaml:"ai_vision_model"`
 	EnvatoApiToken            string `yaml:"envato_api_token"`
+	UnsplashAccessKey         string `yaml:"unsplash_access_key"`
 	NanoBananaKey             string `yaml:"nano_banana_key"`
 	VisionSortingPrompt       string `yaml:"vision_sorting_prompt"`
 	ImageGenerationBasePrompt string `yaml:"image_generation_base_prompt"`

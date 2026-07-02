@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.9] - 2026-07-02
+### Added
+- **Unsplash Stock Integration**: Integrated the Unsplash Stock Photos API as a watermark-free alternative for stock image search. Added Unsplash settings fields, connection tests, and workspace tabs to easily search and add high-resolution unwatermarked photos.
+
 ## [1.0.8] - 2026-07-02
 ### Added
 - **AI Prompt Enhancer**: Added an "Ulepsz prompt z AI (Zróżnicuj)" button next to the prompt customizer. It utilizes `gemini-2.5-flash-lite` via the Google Gemini Interactions API (using the Nano Banana Key) with a temperature of 1.0 to expand Polish service descriptions into diverse, detailed English prompts for highly varied image generation, completely avoiding human faces and full bodies.
