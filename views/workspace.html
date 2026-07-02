@@ -181,7 +181,24 @@
                         </div>
 
                         <div class="flex flex-col gap-1.5">
-                            <label for="custom_prompt" class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Prompt / Opis kontekstowy usługi</label>
+                            <div class="flex justify-between items-center">
+                                <label for="custom_prompt" class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Prompt / Opis kontekstowy usługi</label>
+                                <button type="button" 
+                                        hx-post="/services/{{ .Service.ID }}/prompt/enhance"
+                                        hx-target="#custom_prompt"
+                                        hx-include="#custom_prompt"
+                                        hx-indicator="#enhance-indicator"
+                                        class="px-2 py-1 bg-[#161F30] hover:bg-[#1E2B44] border border-[#2B3B57] hover:border-indigo-500/50 text-[#A5B4FC] hover:text-white rounded text-[10px] font-bold transition flex items-center gap-1 active:scale-[0.98] outline-none select-none">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path>
+                                    </svg>
+                                    <span>Ulepsz prompt z AI (Zróżnicuj)</span>
+                                    <svg id="enhance-indicator" class="animate-spin h-3 w-3 text-indigo-400 htmx-indicator" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                </button>
+                            </div>
                             <textarea id="custom_prompt" name="custom_prompt" rows="3" 
                                       placeholder="Np. Prace dekarskie, układanie dachówek ceramicznych na dachu skośnym..."
                                       class="w-full bg-[#0E1524] border border-[#23314B] rounded-lg px-3.5 py-2.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 transition font-sans resize-y">{{ if .Service.ContextDescription }}{{ .Service.ContextDescription }}{{ else }}Prace remontowo-budowlane w zakresie: {{ .Service.Name }}{{ end }}</textarea>
@@ -201,7 +218,7 @@
                             <div class="flex flex-col gap-1.5">
                                 <label for="ai_size" class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Rozdzielczość (Koszt)</label>
                                 <select id="ai_size" name="image_size" class="bg-[#0E1524] border border-[#23314B] rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 transition font-sans">
-                                    <option value="512px">0.5K (512px) - Najtańszy podgląd</option>
+                                    <option value="512">0.5K (512px) - Najtańszy podgląd</option>
                                     <option value="1K" selected>1K - Standardowa (Niski koszt)</option>
                                     <option value="2K">2K - Wysoka rozdzielczość</option>
                                     <option value="4K">4K - Ultra jakość (Pro/Flash)</option>

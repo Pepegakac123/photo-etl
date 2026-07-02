@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.9] - 2026-07-02
+### Added
+- **AI Prompt Enhancer**: Added an "Ulepsz prompt z AI (Zróżnicuj)" button that uses `gpt-4o-mini` with a temperature of 1.0 to expand Polish service descriptions into diverse, descriptive English prompts for highly varied image generation.
+
+### Fixed
+- **Manual Match Form Evaluation**: Changed HTMX swap behavior for the manual photo-to-service match form to ensure the returned toast notifications and page reload scripts are correctly evaluated by the browser.
+
+## [1.0.8] - 2026-07-02
+### Fixed
+- **API Resolution Value Correction**: Corrected the option value of the 0.5K resolution selection from `512px` to `512` to comply with the official Google Gemini API parameters.
+
 ## [1.0.7] - 2026-07-02
 ### Fixed
 - **Local Gallery Previews Limit Removal**: Removed the arbitrary 6-photo preview limitation when displaying matched/associated folders in the local gallery, showing all available photos within the chosen folder.

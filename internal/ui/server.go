@@ -2,7 +2,9 @@ package ui
 
 import (
 	"bufio"
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"html"
 	"html/template"
@@ -95,6 +97,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("POST /services/{id}/photos/reject-pending", s.handleRejectPendingPhotos)
 	s.mux.HandleFunc("POST /services/{id}/stock/search", s.handleStockSearch)
 	s.mux.HandleFunc("POST /services/{id}/generate", s.handleGenerateImage)
+	s.mux.HandleFunc("POST /services/{id}/prompt/enhance", s.handleEnhancePrompt)
 	s.mux.HandleFunc("POST /photos/{id}/approve", s.handleApprovePhoto)
 	s.mux.HandleFunc("POST /photos/{id}/reject", s.handleRejectPhoto)
 	s.mux.HandleFunc("POST /photos/add", s.handleAddPhoto)
@@ -919,6 +922,109 @@ func (s *Server) handleStockSearch(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("Template stock_results render error: %v", err)
 	}
+}
+
+func (s *Server) handleEnhancePrompt(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	idStr := r.PathValue("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid service ID", http.StatusBadRequest)
+		return
+	}
+
+	svc, err := s.db.GetService(ctx, id)
+	if err != nil {
+		http.Error(w, "Service not found", http.StatusNotFound)
+		return
+	}
+
+	currentPrompt := r.FormValue("custom_prompt")
+	if currentPrompt == "" {
+		currentPrompt = svc.ContextDescription
+	}
+	if currentPrompt == "" {
+		currentPrompt = svc.Name
+	}
+
+	if s.cfg.OpenAIApiKey == "" {
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte(`<script>showToast("Skonfiguruj najpierw klucz OpenAI w ustawieniach, aby ulepszać prompty.", "error");</script>`))
+		return
+	}
+
+	enhancedPrompt, err := s.generateEnhancedPrompt(ctx, svc.Name, currentPrompt)
+	if err != nil {
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte(fmt.Sprintf(`<script>showToast("Błąd ulepszania promptu: %v", "error");</script>`, err)))
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Write([]byte(enhancedPrompt))
+}
+
+func (s *Server) generateEnhancedPrompt(ctx context.Context, serviceName, contextDesc string) (string, error) {
+	url := "https://api.openai.com/v1/chat/completions"
+
+	systemPrompt := `Jesteś ekspertem od promptowania modeli generowania obrazów (takich jak Imagen/Midjourney/Gemini).
+Twoim zadaniem jest przekształcić podaną nazwę usługi budowlano-remontowej oraz jej kontekst w szczegółowy, kreatywny i zróżnicowany prompt w języku angielskim.
+Prompt musi opisywać scenę budowlaną (np. zrobioną smartfonem, amatorską, na placu budowy w Niemczech), z detalami takimi jak narzędzia, materiały, kąty oświetlenia i warunki pogodowe.
+Zadbaj o to, by każda wygenerowana scena była unikalna, dodając losowe kreatywne elementy (np. "sunny day", "overcast sky", "worker checking alignment", "fresh mortar", "wooden scaffolds").
+Zwróć TYLKO i wyłącznie gotowy, czysty prompt w języku angielskim (maksymalnie 3-4 zdania). Nie dodawaj cudzysłowów ani żadnych słów wstępnych.`
+
+	userPrompt := fmt.Sprintf("Nazwa usługi: %s\nKontekst: %s", serviceName, contextDesc)
+
+	payload := map[string]interface{}{
+		"model": "gpt-4o-mini",
+		"messages": []map[string]string{
+			{"role": "system", "content": systemPrompt},
+			{"role": "user", "content": userPrompt},
+		},
+		"temperature": 1.0,
+	}
+
+	bodyBytes, err := json.Marshal(payload)
+	if err != nil {
+		return "", err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(bodyBytes))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+s.cfg.OpenAIApiKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("OpenAI API error (%d): %s", resp.StatusCode, string(respBody))
+	}
+
+	var res struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return "", err
+	}
+
+	if len(res.Choices) == 0 {
+		return "", fmt.Errorf("empty response choices from OpenAI")
+	}
+
+	return strings.TrimSpace(res.Choices[0].Message.Content), nil
 }
 
 func (s *Server) handleGenerateImage(w http.ResponseWriter, r *http.Request) {
