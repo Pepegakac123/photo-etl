@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.0] - 2026-07-02
+### Added
+- **Multiple Service Mapping for Client Photos**: Allowed assigning a single client WhatsApp/screenshot photo to multiple services. The client photos view now shows all photos and displays a list of badges under each image indicating which services they are mapped to.
+- **Dynamic Initialization Loader Feedback**: Added dynamic text feedback ("Trwa proces tłumaczenia nazw usług na język polski...") to the client loading screen and modal when wczytywanie a client from a non-PL country, providing clear visibility of the translation process.
+- **Explicit Clickable Upload Button**: Redesigned manual file upload with a clear, clickable gradient button, fixing DOM/z-index click issues.
+
+### Fixed
+- **Optimized Disk Performance**: Removed all sequential file resolution checking from local gallery matches, unmatched client photos, and AI generation outputs, resolving the 15-second disk-read bottleneck and restoring sub-second workspace speed.
+- **GoPress Directory Structure**: Restored original GoPress behavior of outputting optimized files into a `webp/` subdirectory and updated gallery-merging code to locate and copy webp files correctly.
+
 ## [1.0.9] - 2026-07-02
 ### Added
 - **Unsplash Stock Integration**: Integrated the Unsplash Stock Photos API as a watermark-free alternative for stock image search. Added Unsplash settings fields, connection tests, and workspace tabs to easily search and add high-resolution unwatermarked photos.
