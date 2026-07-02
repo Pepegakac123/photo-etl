@@ -677,7 +677,7 @@ func (s *Server) handleGalleryAutocomplete(w http.ResponseWriter, r *http.Reques
 			<button hx-post="/services/%d/gallery/associate-folder"
 					hx-vals='{"folder_id": "%d"}'
 					hx-target="#gallery-results"
-					hx-swap="beforeend"
+					hx-swap="afterbegin"
 					hx-indicator="#manual-gallery-indicator"
 					onclick="setTimeout(clearAutocomplete, 100)"
 					class="w-full text-left px-4 py-2.5 hover:bg-indigo-600/20 text-xs text-gray-200 hover:text-white transition flex items-center justify-between group active:scale-[0.99] outline-none">

@@ -414,10 +414,6 @@
                 <span class="absolute top-2 left-2 px-2 py-0.5 text-[10px] font-bold rounded bg-black/60 backdrop-blur-sm text-indigo-300 border border-indigo-500/20">
                     {{ .Source }}
                 </span>
-                <!-- Resolution Badge -->
-                <span class="absolute bottom-2 left-2 px-2 py-0.5 text-[10px] font-bold rounded bg-black/60 backdrop-blur-sm text-gray-300 border border-gray-500/20">
-                    {{ photoResolution . }}
-                </span>
                 <!-- Status Badge -->
                 <span class="absolute top-2 right-2 px-2 py-0.5 text-[10px] font-bold rounded backdrop-blur-sm {{ if eq .Status "approved" }} bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 {{ else }} bg-amber-500/20 text-amber-400 border border-amber-500/30 {{ end }}">
                     {{ .Status }}
