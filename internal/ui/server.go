@@ -549,10 +549,7 @@ func (s *Server) handleGallerySearch(w http.ResponseWriter, r *http.Request) {
 				filteredPhotos = append(filteredPhotos, p)
 			}
 		}
-		// limit previews in folder to 6
-		if len(filteredPhotos) > 6 {
-			filteredPhotos = filteredPhotos[:6]
-		}
+
 		results = append(results, folderMatch{
 			Folder: m.Folder,
 			Score:  m.Score,
@@ -706,9 +703,7 @@ func (s *Server) handleGalleryAssociateFolder(w http.ResponseWriter, r *http.Req
 		}
 	}
 
-	if len(filteredPhotos) > 6 {
-		filteredPhotos = filteredPhotos[:6]
-	}
+
 
 	type folderMatch struct {
 		Folder *storage.GalleryFolder

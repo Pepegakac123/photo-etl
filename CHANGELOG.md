@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.7] - 2026-07-02
+### Fixed
+- **Local Gallery Previews Limit Removal**: Removed the arbitrary 6-photo preview limitation when displaying matched/associated folders in the local gallery, showing all available photos within the chosen folder.
+
 ## [1.0.6] - 2026-07-02
 ### Fixed
 - **Client Photos Badge Counter Update**: Added an out-of-band (OOB) HTMX update for `#unmatched-count-badge` in `handleWorkspaceUpdate`, ensuring the "Zdjęcia Klienta" sidebar count refreshes instantly during photo actions (such as bulk rejecting pending photos).
