@@ -305,21 +305,7 @@ func (s *Server) handleManualMatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check limit
-	photos, err := s.db.ListPhotosByService(ctx, serviceID)
-	if err == nil {
-		var activeCount int
-		for _, p := range photos {
-			if p.Status != "rejected" {
-				activeCount++
-			}
-		}
-		if activeCount >= s.cfg.TargetPhotosPerService {
-			w.Header().Set("Content-Type", "text/html")
-			w.Write([]byte(fmt.Sprintf(`<script>showToast("Usługa %s ma już komplet zatwierdzonych zdjęć (%d/%d).", "error");</script>`, svc.Name, activeCount, s.cfg.TargetPhotosPerService)))
-			return
-		}
-	}
+
 
 	// Match the photo
 	err = s.db.AddOrApprovePhoto(ctx, serviceID, filePath, "Client")
@@ -1224,20 +1210,7 @@ func (s *Server) handleAddPhoto(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check photo limit on backend
-	photos, err := s.db.ListPhotosByService(ctx, serviceID)
-	if err == nil {
-		var activeCount int
-		for _, p := range photos {
-			if p.Status != "rejected" {
-				activeCount++
-			}
-		}
-		if activeCount >= s.cfg.TargetPhotosPerService {
-			http.Error(w, fmt.Sprintf("Osiągnięto limit %d zdjęć dla tej usługi", s.cfg.TargetPhotosPerService), http.StatusForbidden)
-			return
-		}
-	}
+
 
 	srcPath := r.URL.Query().Get("path")
 	source := r.URL.Query().Get("source")
@@ -1322,6 +1295,25 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to retrieve services: %v", err), http.StatusInternalServerError)
 		return
+	}
+
+	// Validate minimum photo count for each service before exporting
+	for _, svc := range services {
+		photos, err := s.db.ListPhotosByService(ctx, svc.ID)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to list photos for service %s: %v", svc.Name, err), http.StatusInternalServerError)
+			return
+		}
+		approvedCount := 0
+		for _, p := range photos {
+			if p.Status == "approved" {
+				approvedCount++
+			}
+		}
+		if approvedCount < s.cfg.TargetPhotosPerService {
+			http.Error(w, fmt.Sprintf("Usługa '%s' nie spełnia minimalnego limitu zdjęć (%d/%d zatwierdzonych).", svc.Name, approvedCount, s.cfg.TargetPhotosPerService), http.StatusBadRequest)
+			return
+		}
 	}
 
 	var copyCount int
@@ -1527,6 +1519,33 @@ func (s *Server) handleExportStream(w http.ResponseWriter, r *http.Request) {
 
 	if len(services) == 0 {
 		sendLog("[ERR] Brak zarejestrowanych usług w projekcie.")
+		return
+	}
+
+	// Validate minimum photo count for each service before exporting
+	hasErrors := false
+	for _, svc := range services {
+		photos, err := s.db.ListPhotosByService(ctx, svc.ID)
+		if err != nil {
+			sendLog(fmt.Sprintf("[ERR] Błąd listowania zdjęć dla usługi %s: %v", svc.Name, err))
+			hasErrors = true
+			continue
+		}
+		approvedCount := 0
+		for _, p := range photos {
+			if p.Status == "approved" {
+				approvedCount++
+			}
+		}
+		if approvedCount < s.cfg.TargetPhotosPerService {
+			sendLog(fmt.Sprintf("[ERR] Usługa '%s' nie spełnia minimalnego limitu zdjęć (%d/%d approved). Uzupełnij zdjęcia przed eksportem.", svc.Name, approvedCount, s.cfg.TargetPhotosPerService))
+			hasErrors = true
+		}
+	}
+
+	if hasErrors {
+		sendLog("[ERR] Eksport przerwany: nie wszystkie usługi spełniają minimalny limit zdjęć.")
+		sendProgress(0, "Błąd eksportu - brakujące zdjęcia")
 		return
 	}
 
