@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/Pepegakac123/photo-etl/internal/config"
 	"github.com/Pepegakac123/photo-etl/internal/gallery"
@@ -17,6 +18,7 @@ import (
 	"github.com/Pepegakac123/photo-etl/internal/storage"
 	"github.com/Pepegakac123/photo-etl/internal/translate"
 	"github.com/Pepegakac123/photo-etl/internal/ui"
+	"github.com/Pepegakac123/photo-etl/internal/version"
 )
 
 type translateWrapper struct{}
@@ -30,7 +32,59 @@ func main() {
 	configPath := flag.String("config", defaultConfig, "path to config file")
 	clientDir := flag.String("client", "", "path to client directory to process")
 	port := flag.Int("port", 8080, "port to run HTTP server on")
+	versionFlag := flag.Bool("version", false, "print version info and exit")
+	updateFlag := flag.Bool("update", false, "check for updates and install if available")
 	flag.Parse()
+
+	if *versionFlag {
+		fmt.Printf("Overflow Photo ETL version %s\n", version.CurrentVersion)
+		os.Exit(0)
+	}
+
+	if *updateFlag {
+		fmt.Print("Sprawdzanie aktualizacji... ")
+		newerReleases, err := version.CheckForUpdates("Pepegakac123/photo-etl")
+		if err != nil {
+			fmt.Printf("\nBłąd podczas sprawdzania aktualizacji: %v\n", err)
+			os.Exit(1)
+		}
+
+		if len(newerReleases) == 0 {
+			fmt.Println("Masz już najnowszą wersję.")
+			os.Exit(0)
+		}
+
+		latestRelease := newerReleases[len(newerReleases)-1]
+		fmt.Printf("\nDostępna jest nowa wersja: %s (Twoja to %s)\n", latestRelease.GetTagName(), version.CurrentVersion)
+
+		var cumulativeChangelog strings.Builder
+		for _, release := range newerReleases {
+			if release.GetBody() != "" {
+				cumulativeChangelog.WriteString(fmt.Sprintf("\n--- Zmiany w wersji %s ---\n", release.GetTagName()))
+				cumulativeChangelog.WriteString(release.GetBody() + "\n")
+			}
+		}
+
+		if cumulativeChangelog.Len() > 0 {
+			fmt.Println(cumulativeChangelog.String())
+			fmt.Println("---")
+		}
+
+		fmt.Println("Pobieranie i instalowanie aktualizacji...")
+		if err := version.PerformUpdate(latestRelease); err != nil {
+			fmt.Printf("Błąd podczas aktualizacji: %v\n", err)
+			os.Exit(1)
+		}
+
+		fmt.Println("Aktualizacja zakończona pomyślnie! Uruchom program ponownie.")
+		os.Exit(0)
+	}
+
+	// Ensure binary has correct name (photo-etl)
+	if err := version.EnsureBinaryName("photo-etl"); err != nil {
+		log.Printf("Nie udało się upewnić o nazwie pliku binarnego: %v", err)
+	}
+	version.CleanupOldBinary()
 
 	var absClientDir string
 	var db *storage.DB

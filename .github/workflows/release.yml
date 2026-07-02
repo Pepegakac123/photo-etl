@@ -1,0 +1,93 @@
+name: Build and Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            output_name: photo-etl_linux_amd64
+            extra_ldflags: ""
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            output_name: photo-etl_windows_amd64.exe
+            extra_ldflags: "-extldflags '-static'"
+          - os: macos-14 # Apple Silicon (M1) runner
+            goos: darwin
+            goarch: arm64
+            output_name: photo-etl_darwin_arm64
+            extra_ldflags: ""
+          - os: macos-latest # Intel runner
+            goos: darwin
+            goarch: amd64
+            output_name: photo-etl_darwin_amd64
+            extra_ldflags: ""
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          go build -ldflags "-X github.com/Pepegakac123/photo-etl/internal/version.CurrentVersion=${{ github.ref_name }} ${{ matrix.extra_ldflags }}" -o ${{ matrix.output_name }} ./cmd/server
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.output_name }}
+          path: ${{ matrix.output_name }}
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Flatten directory
+        run: |
+          mkdir dist
+          find artifacts -type f -exec cp {} dist/ \;
+          ls -l dist
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
