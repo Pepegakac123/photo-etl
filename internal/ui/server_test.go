@@ -176,3 +176,90 @@ func TestAssociateFolder(t *testing.T) {
 		t.Errorf("expected response to contain image filename 'image1.jpg', got: %s", rr.Body.String())
 	}
 }
+
+func TestExportWithWhatsAppFolder(t *testing.T) {
+	tmpDir := t.TempDir()
+	clientDir := filepath.Join(tmpDir, "test-client")
+	_ = os.Mkdir(clientDir, 0755)
+
+	// Create WhatsApp directory in the client directory
+	whatsappDir := filepath.Join(clientDir, "whatsapp-photos")
+	_ = os.Mkdir(whatsappDir, 0755)
+
+	// Write mock images to WhatsApp directory
+	_ = os.WriteFile(filepath.Join(whatsappDir, "photo1.jpg"), []byte("photo1"), 0644)
+	_ = os.WriteFile(filepath.Join(whatsappDir, "photo2.jpg"), []byte("photo2"), 0644)
+	_ = os.WriteFile(filepath.Join(whatsappDir, "photo3.jpg"), []byte("photo3"), 0644)
+	_ = os.WriteFile(filepath.Join(whatsappDir, "not-image.txt"), []byte("text"), 0644)
+
+	db, err := storage.InitDB(":memory:")
+	if err != nil {
+		t.Fatalf("failed to init db: %v", err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+	serviceID, err := db.CreateService(ctx, "ServiceA")
+	if err != nil {
+		t.Fatalf("failed to create service: %v", err)
+	}
+
+	// Create 5 approved photos for ServiceA so that export minimum limit is satisfied
+	for i := 1; i <= 5; i++ {
+		photoPath := filepath.Join(tmpDir, fmt.Sprintf("service_photo%d.jpg", i))
+		_ = os.WriteFile(photoPath, []byte("service_photo"), 0644)
+		_, err = db.CreatePhoto(ctx, serviceID, photoPath, "LocalGallery", "approved")
+		if err != nil {
+			t.Fatalf("failed to create photo: %v", err)
+		}
+	}
+
+	// Mark photo3 as rejected in the DB
+	rejectedPath := filepath.Join(whatsappDir, "photo3.jpg")
+	_, err = db.CreatePhoto(ctx, serviceID, rejectedPath, "Client", "rejected")
+	if err != nil {
+		t.Fatalf("failed to create rejected photo in DB: %v", err)
+	}
+
+	cfg := &config.Config{
+		TargetPhotosPerService: 5,
+		LocalGalleryPath:       tmpDir,
+		ExportDir:              filepath.Join(tmpDir, "export"),
+	}
+
+	srv := NewServer(db, cfg, "", nil, nil, nil, clientDir)
+	wd, _ := os.Getwd()
+	srv.templatesDir = filepath.Join(wd, "..", "..", "views")
+	_ = srv.ParseTemplates()
+
+	// Perform export
+	req, _ := http.NewRequest("POST", "/export", nil)
+	rr := httptest.NewRecorder()
+	srv.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected export status 200, got %d. Body: %s", rr.Code, rr.Body.String())
+	}
+
+	// Verify files in exportDir/whatsapp-photos
+	exportWhatsappDir := filepath.Join(cfg.ExportDir, "whatsapp-photos")
+	
+	// Should contain photo1.jpg and photo2.jpg
+	if _, err := os.Stat(filepath.Join(exportWhatsappDir, "photo1.jpg")); err != nil {
+		t.Errorf("expected photo1.jpg to be exported, got error: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(exportWhatsappDir, "photo2.jpg")); err != nil {
+		t.Errorf("expected photo2.jpg to be exported, got error: %v", err)
+	}
+
+	// Should NOT contain photo3.jpg (rejected)
+	if _, err := os.Stat(filepath.Join(exportWhatsappDir, "photo3.jpg")); !os.IsNotExist(err) {
+		t.Errorf("expected photo3.jpg (rejected) to not be exported, but it exists")
+	}
+
+	// Should NOT contain not-image.txt (filtered by scanIsImage)
+	if _, err := os.Stat(filepath.Join(exportWhatsappDir, "not-image.txt")); !os.IsNotExist(err) {
+		t.Errorf("expected not-image.txt (non-image) to not be exported, but it exists")
+	}
+}
+

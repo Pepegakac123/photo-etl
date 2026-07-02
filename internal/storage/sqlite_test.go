@@ -284,3 +284,41 @@ func TestGalleryFolderOperations(t *testing.T) {
 	}
 }
 
+func TestGetRejectedPhotoPaths(t *testing.T) {
+	db, err := InitDB(":memory:")
+	if err != nil {
+		t.Fatalf("failed to initialize db: %v", err)
+	}
+	defer db.Close()
+
+	ctx := t.Context()
+
+	svcID, err := db.CreateService(ctx, "TestService")
+	if err != nil {
+		t.Fatalf("failed to create service: %v", err)
+	}
+
+	// Create approved, pending, and rejected photos
+	_, _ = db.CreatePhoto(ctx, svcID, "/path/approved.jpg", "Client", "approved")
+	_, _ = db.CreatePhoto(ctx, svcID, "/path/pending.jpg", "Client", "pending")
+	_, _ = db.CreatePhoto(ctx, svcID, "/path/rejected.jpg", "Client", "rejected")
+
+	rejected, err := db.GetRejectedPhotoPaths(ctx)
+	if err != nil {
+		t.Fatalf("failed to get rejected photo paths: %v", err)
+	}
+
+	if len(rejected) != 1 {
+		t.Fatalf("expected 1 rejected photo path, got %d", len(rejected))
+	}
+
+	if !rejected["/path/rejected.jpg"] {
+		t.Errorf("expected /path/rejected.jpg to be in rejected paths map")
+	}
+
+	if rejected["/path/approved.jpg"] || rejected["/path/pending.jpg"] {
+		t.Errorf("expected approved or pending paths to not be in rejected paths map")
+	}
+}
+
+

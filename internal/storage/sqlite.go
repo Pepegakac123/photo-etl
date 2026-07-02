@@ -384,6 +384,25 @@ func (d *DB) GetActivePhotoPaths(ctx context.Context) (map[string]bool, error) {
 	return paths, nil
 }
 
+// GetRejectedPhotoPaths returns all file paths of photos that are rejected in DB.
+func (d *DB) GetRejectedPhotoPaths(ctx context.Context) (map[string]bool, error) {
+	rows, err := d.db.QueryContext(ctx, "SELECT file_path FROM photos WHERE status = 'rejected'")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	paths := make(map[string]bool)
+	for rows.Next() {
+		var path string
+		if err := rows.Scan(&path); err == nil {
+			paths[path] = true
+		}
+	}
+	return paths, nil
+}
+
+
 // AddOrApprovePhoto inserts a photo or updates its status to 'approved' if it was rejected.
 func (d *DB) AddOrApprovePhoto(ctx context.Context, serviceID int64, filePath string, source string) error {
 	var id int64

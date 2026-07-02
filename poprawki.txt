@@ -1,0 +1,18 @@
+1 Przydałoby sie żeby zdjęcia miały taki badge w sobie pokazujacy ich rozdielczosc taka domyslna która będzie gdy je pobierzey(dla stocków) i takie które maja obecnie dla zdjec klienta
+
+2. Wystepuje taki blad że w zakaldce z lokalnej galeri gdy wybierzeym jakas usluge z inputa gdzie jest autocomplete to nagle wszystkei nne znikaja i pojawai sie tylko ten wybrany a on powinien byc po prostu dodawany do tej listy opcji do wyboeu
+
+3. Dodawanie zdjęcia z dysku nic nie robi nie towiera sie żadne popup nie możńa nic dodać, ogólnie opcja ma być też taka że otwiera sie kilka
+
+4. Odśiweżanie indeksu galeri w zakąłd loklanej galeri działaa le nie ma żadnego feedbacku po kliknieuc powinien byc toast czy sie udalo czy nie
+
+5. Dowiedzeic sie jak pobiearne sa zdjecia z upslasha w jakie rozdzielczosic i czy wogole dobrze działają, mozna testowo curl,jq wykorzystac
+
+6. Kiedy mamy doczyniena zklientem ktory ma usługi nie w jeęzyku polskim to zawsze pod nazœą usługe powinien w nawiasie być jej polski odpowiendik. Możemy to po prostu zrobić na etapie wpisywania linku klienta gdzie jeszce dodatkowo bezdeimy mieli do wyboru kraj z któęg klient pochodzi taki select z dwulitetowymi nazwam panst typu PL, DE , US takie najbadzije popularne kraje gdzei placy migruja defaultowo bedzie oczywiscie jezyk PL
+
+7. Jest problem gdyże te instalki dostrarczan na githubie maja taki problem ze na windwos gdy uruchami plik exe to odrazu sie wylacz po uruchomieniu moze to być problem z naszym programe main i tym ja zachowuej sie na windows? Sytuacja do zbadania
+
+
+8. Nie jeste pewnt czy kopiowanie na konuc tych folderow do usługowej galeri działa trzeab wprowadzić jakieś zweryfikowanie czyli skopiowanie a potem sprawdzenie czy faktycznie tam jest i czy dobrze kopiuja sie tylko zdjeci z ai lub stocka. A jesli nawet działa to mergowanie jest słąbo zrobione będziemy musieli tu podjerzeć jak logiak wygląd w gopress i stamtąd to jakoś zintegrować
+
+9. Obecnei ejst blokada eksportu do gopressa jesli uzytkownik nie ma 5 uslug minimum ale powinna byc mozliwoc force ingored tego bo czasem po prostu ejst to zamierzone wiec w tym popuopue mus byc przycisk do zingorowani tego

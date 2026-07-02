@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [1.0.9] - 2026-07-02
 ### Added
 - **Unsplash Stock Integration**: Integrated the Unsplash Stock Photos API as a watermark-free alternative for stock image search. Added Unsplash settings fields, connection tests, and workspace tabs to easily search and add high-resolution unwatermarked photos.
+- **WhatsApp Folder Export Integration**: Enabled exporting the client's original WhatsApp/screenshots folder as a subdirectory in the final export directory (excluding photos explicitly marked as `rejected` in the database). This ensures that client-supplied raw photo folders are processed, optimized, and uploaded by GoPress instead of being ignored during the final stage.
 
 ## [1.0.8] - 2026-07-02
 ### Added

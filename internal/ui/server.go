@@ -1332,6 +1332,56 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Export the WhatsApp/screenshots folder if it exists
+	var screenshotsFolder string
+	if s.clientDir != "" {
+		entries, err := os.ReadDir(s.clientDir)
+		if err == nil {
+			for _, entry := range entries {
+				if entry.IsDir() {
+					nameLower := strings.ToLower(entry.Name())
+					if strings.Contains(nameLower, "whatsapp") || strings.Contains(nameLower, "zrzuty") {
+						screenshotsFolder = filepath.Join(s.clientDir, entry.Name())
+						break
+					}
+				}
+			}
+		}
+	}
+
+	if screenshotsFolder != "" {
+		rejectedPaths, err := s.db.GetRejectedPhotoPaths(ctx)
+		if err != nil {
+			log.Printf("[EXPORT] Failed to get rejected photo paths: %v", err)
+			rejectedPaths = make(map[string]bool)
+		}
+
+		files, err := os.ReadDir(screenshotsFolder)
+		if err == nil {
+			folderName := filepath.Base(screenshotsFolder)
+			destWhatsappDir := filepath.Join(exportDir, folderName)
+			_ = os.MkdirAll(destWhatsappDir, 0755)
+
+			for _, file := range files {
+				if file.IsDir() {
+					continue
+				}
+				if scanIsImage(file.Name()) {
+					fullPath := filepath.Join(screenshotsFolder, file.Name())
+					if rejectedPaths[fullPath] {
+						continue
+					}
+					destPath := filepath.Join(destWhatsappDir, file.Name())
+					if err := copyFile(fullPath, destPath); err != nil {
+						log.Printf("[EXPORT] Failed to copy WhatsApp photo %s: %v", fullPath, err)
+					} else {
+						copyCount++
+					}
+				}
+			}
+		}
+	}
+
 	log.Printf("Exported %d approved photos to %s", copyCount, exportDir)
 
 	// Execute GoPress CLI if configured
@@ -1589,6 +1639,66 @@ func (s *Server) handleExportStream(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		sendLog(fmt.Sprintf("[SYSTEM] Zakończono przetwarzanie usługi %s. Zatwierdzonych zdjęć: %d.", svc.Name, approvedPhotos))
+	}
+
+	// Export the WhatsApp/screenshots folder if it exists
+	var screenshotsFolder string
+	if s.clientDir != "" {
+		entries, err := os.ReadDir(s.clientDir)
+		if err == nil {
+			for _, entry := range entries {
+				if entry.IsDir() {
+					nameLower := strings.ToLower(entry.Name())
+					if strings.Contains(nameLower, "whatsapp") || strings.Contains(nameLower, "zrzuty") {
+						screenshotsFolder = filepath.Join(s.clientDir, entry.Name())
+						break
+					}
+				}
+			}
+		}
+	}
+
+	if screenshotsFolder != "" {
+		folderName := filepath.Base(screenshotsFolder)
+		sendLog(fmt.Sprintf("[SYSTEM] Wykryto folder zrzutów/WhatsApp: %s. Kopiowanie...", folderName))
+		
+		rejectedPaths, err := s.db.GetRejectedPhotoPaths(ctx)
+		if err != nil {
+			sendLog(fmt.Sprintf("  [ERR] Błąd pobierania odrzuconych zdjęć: %v", err))
+			rejectedPaths = make(map[string]bool)
+		}
+
+		files, err := os.ReadDir(screenshotsFolder)
+		if err != nil {
+			sendLog(fmt.Sprintf("  [ERR] Błąd odczytu folderu zrzutów: %v", err))
+		} else {
+			destWhatsappDir := filepath.Join(exportDir, folderName)
+			_ = os.MkdirAll(destWhatsappDir, 0755)
+
+			whatsappCopied := 0
+			for _, file := range files {
+				if file.IsDir() {
+					continue
+				}
+				if scanIsImage(file.Name()) {
+					fullPath := filepath.Join(screenshotsFolder, file.Name())
+					if rejectedPaths[fullPath] {
+						sendLog(fmt.Sprintf("  [SYSTEM] Pomijanie odrzuconego zdjęcia WhatsApp: %s", file.Name()))
+						continue
+					}
+					destPath := filepath.Join(destWhatsappDir, file.Name())
+					sendLog(fmt.Sprintf("  -> Kopiowanie zdjęcia WhatsApp: %s ...", file.Name()))
+					if err := copyFile(fullPath, destPath); err != nil {
+						sendLog(fmt.Sprintf("  [ERR] Błąd kopiowania pliku %s: %v", file.Name(), err))
+					} else {
+						sendLog(fmt.Sprintf("  [OK] Skopiowano do: %s/%s", folderName, file.Name()))
+						copyCount++
+						whatsappCopied++
+					}
+				}
+			}
+			sendLog(fmt.Sprintf("[SYSTEM] Zakończono kopiowanie folderu %s. Skopiowano: %d.", folderName, whatsappCopied))
+		}
 	}
 
 	sendLog(fmt.Sprintf("[SYSTEM] Eksport plików zakończony. Wyeksportowano łącznie %d zdjęć.", copyCount))
