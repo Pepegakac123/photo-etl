@@ -110,7 +110,7 @@ type interactionsResponse struct {
 	Steps []interactionStep `json:"steps"`
 }
 
-func (c *BananaClient) GenerateImage(ctx context.Context, serviceName, clientCountry, serviceDescription, modelName, outputPath string) error {
+func (c *BananaClient) GenerateImage(ctx context.Context, serviceName, clientCountry, serviceDescription, modelName, imageSize, outputPath string) error {
 	// If no API key is set, output a mock development image
 	if c.apiKey == "" {
 		return c.writeMockImage(outputPath)
@@ -130,15 +130,22 @@ func (c *BananaClient) GenerateImage(ctx context.Context, serviceName, clientCou
 	)
 
 	var responseFormat *responseFormatStruct
-	if modelToUse == "gemini-3.1-flash-image" || modelToUse == "gemini-3-pro-image" {
+	if imageSize != "" {
 		responseFormat = &responseFormatStruct{
 			Type:      "image",
-			ImageSize: "2K",
+			ImageSize: imageSize,
 		}
-	} else if modelToUse == "gemini-3.1-flash-lite-image" {
-		responseFormat = &responseFormatStruct{
-			Type:      "image",
-			ImageSize: "1K",
+	} else {
+		if modelToUse == "gemini-3.1-flash-image" || modelToUse == "gemini-3-pro-image" {
+			responseFormat = &responseFormatStruct{
+				Type:      "image",
+				ImageSize: "2K",
+			}
+		} else if modelToUse == "gemini-3.1-flash-lite-image" {
+			responseFormat = &responseFormatStruct{
+				Type:      "image",
+				ImageSize: "1K",
+			}
 		}
 	}
 

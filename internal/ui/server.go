@@ -940,6 +940,8 @@ func (s *Server) handleGenerateImage(w http.ResponseWriter, r *http.Request) {
 		model = "gemini-3.1-flash-image"
 	}
 
+	imageSize := r.FormValue("image_size")
+
 	countStr := r.FormValue("count")
 	count := 1
 	if countStr != "" {
@@ -981,7 +983,7 @@ func (s *Server) handleGenerateImage(w http.ResponseWriter, r *http.Request) {
 			defer wg.Done()
 			filename := fmt.Sprintf("generated_%d_%d_%d.png", id, os.Getpid(), idx)
 			outputPath := filepath.Join(tempDir, filename)
-			err := s.bananaClient.GenerateImage(ctx, svc.Name, "Niemcy", desc, model, outputPath)
+			err := s.bananaClient.GenerateImage(ctx, svc.Name, "Niemcy", desc, model, imageSize, outputPath)
 			resChan <- genResult{Path: outputPath, Err: err}
 		}(i)
 	}
