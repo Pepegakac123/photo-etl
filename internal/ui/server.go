@@ -479,6 +479,17 @@ func (s *Server) handleWorkspaceUpdate(w http.ResponseWriter, r *http.Request, s
 			log.Printf("Template sidebar_button render error: %v", err)
 		}
 	}
+
+	// 4. Render the OOB unmatched count badge progress update
+	if s.clientDir != "" {
+		unmatchedList, _ := s.getUnmatchedPhotosList(ctx)
+		unmatchedCount := len(unmatchedList)
+		_, _ = fmt.Fprintf(w, `
+			<span id="unmatched-count-badge" hx-swap-oob="true" class="px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[10px] font-bold font-mono">
+				%d
+			</span>
+		`, unmatchedCount)
+	}
 }
 
 func (s *Server) handleGallerySearch(w http.ResponseWriter, r *http.Request) {

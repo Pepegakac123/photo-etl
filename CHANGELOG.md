@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.6] - 2026-07-02
+### Fixed
+- **Client Photos Badge Counter Update**: Added an out-of-band (OOB) HTMX update for `#unmatched-count-badge` in `handleWorkspaceUpdate`, ensuring the "Zdjęcia Klienta" sidebar count refreshes instantly during photo actions (such as bulk rejecting pending photos).
+
 ## [1.0.5] - 2026-07-02
 ### Fixed
 - **Autocomplete Result Association Race**: Added a 100ms delay to `clearAutocomplete()` on suggestion click to prevent immediate DOM detachment from aborting the HTMX request, fixing the issue where selected folders would fail to load their photo list.
