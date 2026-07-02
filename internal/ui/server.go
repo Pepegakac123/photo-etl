@@ -330,7 +330,17 @@ func (s *Server) handleManualMatch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/html")
-	w.Write([]byte(fmt.Sprintf(`<script>showToast("Zdjęcie dopasowane pomyślnie do usługi: %s", "success"); setTimeout(() => { window.location.reload(); }, 1000);</script>`, svc.Name)))
+	var unmatchedCount int
+	if s.clientDir != "" {
+		unmatchedList, _ := s.getUnmatchedPhotosList(ctx)
+		unmatchedCount = len(unmatchedList)
+	}
+	w.Write([]byte(fmt.Sprintf(`
+		<div hx-swap-oob="beforeend:body"><script>showToast("Zdjęcie dopasowane pomyślnie do usługi: %s", "success");</script></div>
+		<span id="unmatched-count-badge" hx-swap-oob="true" class="px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[10px] font-bold font-mono">
+			%d
+		</span>
+	`, svc.Name, unmatchedCount)))
 }
 
 func (s *Server) handleWorkspace(w http.ResponseWriter, r *http.Request) {
