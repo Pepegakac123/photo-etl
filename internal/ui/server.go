@@ -476,15 +476,6 @@ func (s *Server) handleWorkspaceUpdate(w http.ResponseWriter, r *http.Request, s
 			log.Printf("Template sidebar_button render error: %v", err)
 		}
 	}
-
-	// 4. Render the OOB AI results reset if adding an AI photo
-	if r.URL.Query().Get("source") == "AI" {
-		_, _ = w.Write([]byte(`
-			<div id="ai-gen-results" hx-swap-oob="true" class="grid grid-cols-2 gap-4">
-				<p class="text-sm text-gray-500 col-span-2">Kliknij przycisk powyżej, aby wygenerować zdjęcie za pomocą modelu Imagen.</p>
-			</div>
-		`))
-	}
 }
 
 func (s *Server) handleGallerySearch(w http.ResponseWriter, r *http.Request) {
@@ -1142,6 +1133,9 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 				gopressOutput = fmt.Sprintf("GoPress error: %v. Output: %s", err, string(output))
 			} else {
 				gopressOutput = fmt.Sprintf("GoPress optimization complete:\n%s", string(output))
+				if s.cfg.LocalGalleryPath != "" {
+					s.mergeNonClientPhotosToGallery(ctx, exportDir, nil)
+				}
 			}
 		} else {
 			gopressOutput = "GoPress CLI executable not found at specified path."
@@ -1349,9 +1343,6 @@ func (s *Server) handleExportStream(w http.ResponseWriter, r *http.Request) {
 	if s.cfg.GopressCmdPath != "" {
 		if _, err := os.Stat(s.cfg.GopressCmdPath); err == nil {
 			args := []string{"-i", exportDir}
-			if s.cfg.LocalGalleryPath != "" {
-				args = append(args, "-g", s.cfg.LocalGalleryPath)
-			}
 			if s.cfg.GopressUpload {
 				args = append(args, "--upload")
 				if s.cfg.GopressWpDomain != "" {
@@ -1408,6 +1399,10 @@ func (s *Server) handleExportStream(w http.ResponseWriter, r *http.Request) {
 					sendLog(fmt.Sprintf("GoPress error: CLI exited with error: %v", err))
 				} else {
 					sendLog("[SYSTEM] GoPress CLI zakończył działanie pomyślnie.")
+					if s.cfg.LocalGalleryPath != "" {
+						sendLog("[SYSTEM] Synchronizacja przefiltrowanych zdjęć (bez WhatsApp) do galerii lokalnej...")
+						s.mergeNonClientPhotosToGallery(ctx, exportDir, sendLog)
+					}
 				}
 			}
 		} else {
@@ -1468,4 +1463,48 @@ func ensureMinimumWidth(filePath string, minWidth int) error {
 		return png.Encode(outFile, newImg)
 	}
 	return jpeg.Encode(outFile, newImg, &jpeg.Options{Quality: 95})
+}
+
+func (s *Server) mergeNonClientPhotosToGallery(ctx context.Context, exportDir string, sendLog func(string)) {
+	if s.cfg.LocalGalleryPath == "" {
+		return
+	}
+
+	services, err := s.db.ListServices(ctx)
+	if err != nil {
+		return
+	}
+
+	for _, svc := range services {
+		photos, err := s.db.ListPhotosByService(ctx, svc.ID)
+		if err != nil {
+			continue
+		}
+
+		for _, p := range photos {
+			if p.Status == "approved" && p.Source != "Client" {
+				filename := filepath.Base(p.FilePath)
+				if p.Source == "Stock" {
+					filename = fmt.Sprintf("stock_%d.jpg", p.ID)
+				}
+				
+				optFilename := strings.TrimSuffix(filename, filepath.Ext(filename)) + ".webp"
+				optFilePath := filepath.Join(exportDir, svc.Name, optFilename)
+
+				if _, err := os.Stat(optFilePath); err == nil {
+					destDir := filepath.Join(s.cfg.LocalGalleryPath, svc.Name)
+					_ = os.MkdirAll(destDir, 0755)
+					destPath := filepath.Join(destDir, optFilename)
+					
+					if err := copyFile(optFilePath, destPath); err == nil {
+						if sendLog != nil {
+							sendLog(fmt.Sprintf("  [GALERIA] Skopiowano do galerii lokalnej: %s/%s", svc.Name, optFilename))
+						} else {
+							log.Printf("[GALERIA] Skopiowano do galerii lokalnej: %s/%s", svc.Name, optFilename)
+						}
+					}
+				}
+			}
+		}
+	}
 }
