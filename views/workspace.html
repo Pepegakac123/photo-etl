@@ -47,6 +47,22 @@
             <div class="flex-1 overflow-y-auto min-h-0 pr-1">
                 <!-- Tab: Local Gallery -->
                 <div id="tab-content-local-gallery" class="space-y-6">
+                    <!-- Gallery Re-indexing Panel -->
+                    <div class="flex justify-between items-center bg-[#0F1422] border border-[#23314B] rounded-2xl p-4 shrink-0">
+                        <div class="space-y-0.5">
+                            <h4 class="text-xs font-bold text-gray-300 uppercase tracking-wide">Zasoby prywatnej galerii</h4>
+                            <p class="text-[10px] text-gray-500">Zaktualizuj bazę danych, jeśli dodałeś nowe foldery/zdjęcia na dysk.</p>
+                        </div>
+                        <button hx-post="/gallery/index" 
+                                hx-swap="none"
+                                class="px-3.5 py-2 bg-[#161F30] hover:bg-[#1E2B44] border border-[#2B3B57] text-[#A5B4FC] hover:text-white rounded-lg transition active:scale-[0.98] flex items-center justify-center gap-1.5 text-[10px] font-bold">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H17.9"></path>
+                            </svg>
+                            <span>Zaktualizuj indeks galerii</span>
+                        </button>
+                    </div>
+
                     <div class="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between p-4 bg-indigo-950/10 border border-indigo-500/15 rounded-2xl shrink-0">
                         <div class="space-y-1">
                             <h4 class="text-xs font-bold text-indigo-400 uppercase tracking-wide">Automatyczne dopasowanie</h4>
@@ -244,6 +260,32 @@
 <h3 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4 shrink-0">
     Zdjęcia w Projekcie
 </h3>
+
+<!-- Manual Upload Form -->
+<form hx-encoding="multipart/form-data" 
+      hx-post="/services/{{ .Service.ID }}/photos/upload" 
+      hx-target="#project-photos-container"
+      hx-indicator="#upload-indicator"
+      class="mb-6 p-4 bg-[#0F1422]/60 border border-dashed border-[#23314B] rounded-2xl flex flex-col items-center justify-center gap-2 hover:border-indigo-500/50 hover:bg-[#0E1524]/80 transition group relative cursor-pointer shrink-0">
+    <input type="file" name="files" multiple accept="image/*" 
+           class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+           onchange="if (this.files.length > 0) { this.form.dispatchEvent(new Event('submit', { bubbles: true })); }">
+    <div class="flex flex-col items-center gap-1.5 pointer-events-none text-center">
+        <svg class="w-7 h-7 text-indigo-400 group-hover:scale-105 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        </svg>
+        <span class="text-[11px] font-bold text-gray-300 group-hover:text-white transition">Dodaj zdjęcia z dysku</span>
+        <span class="text-[9px] text-gray-500">Kliknij lub przeciągnij pliki PNG, JPG, WebP</span>
+    </div>
+    <!-- Uploading Indicator -->
+    <div id="upload-indicator" class="htmx-indicator absolute inset-0 bg-[#0E1524]/90 rounded-2xl flex items-center justify-center gap-2 z-20">
+        <svg class="animate-spin h-4 w-4 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <span class="text-[10px] text-gray-400 font-bold font-sans">Wysyłanie plików...</span>
+    </div>
+</form>
 
 <div class="flex-1 overflow-y-auto space-y-4 pr-1">
     {{ if not .Photos }}

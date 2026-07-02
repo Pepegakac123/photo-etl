@@ -90,6 +90,8 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("POST /services/{id}/gallery/search", s.handleGallerySearch)
 	s.mux.HandleFunc("POST /services/{id}/gallery/autocomplete", s.handleGalleryAutocomplete)
 	s.mux.HandleFunc("POST /services/{id}/gallery/associate-folder", s.handleGalleryAssociateFolder)
+	s.mux.HandleFunc("POST /gallery/index", s.handleGalleryIndex)
+	s.mux.HandleFunc("POST /services/{id}/photos/upload", s.handlePhotosUpload)
 	s.mux.HandleFunc("POST /services/{id}/stock/search", s.handleStockSearch)
 	s.mux.HandleFunc("POST /services/{id}/generate", s.handleGenerateImage)
 	s.mux.HandleFunc("POST /photos/{id}/approve", s.handleApprovePhoto)
@@ -722,6 +724,107 @@ func (s *Server) handleGalleryAssociateFolder(w http.ResponseWriter, r *http.Req
 	if err != nil {
 		log.Printf("Template gallery_results render error: %v", err)
 	}
+}
+
+func (s *Server) handleGalleryIndex(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if s.cfg.LocalGalleryPath == "" {
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte(`<script>showToast("Ścieżka do galerii lokalnej nie jest ustawiona w konfiguracji.", "error");</script>`))
+		return
+	}
+
+	err := s.galleryService.IndexGallery(ctx)
+	if err != nil {
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte(fmt.Sprintf(`<script>showToast("Błąd indeksowania galerii: %v", "error");</script>`, err)))
+		return
+	}
+
+	folders, err := s.db.ListGalleryFolders(ctx)
+	count := 0
+	if err == nil {
+		count = len(folders)
+	}
+
+	w.Header().Set("Content-Type", "text/html")
+	w.Write([]byte(fmt.Sprintf(`<script>showToast("Pomyślnie zaktualizowano indeks galerii. Zaindeksowane foldery: %d", "success");</script>`, count)))
+}
+
+func (s *Server) handlePhotosUpload(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	idStr := r.PathValue("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid service ID", http.StatusBadRequest)
+		return
+	}
+
+	svc, err := s.db.GetService(ctx, id)
+	if err != nil {
+		http.Error(w, "Service not found", http.StatusNotFound)
+		return
+	}
+
+	err = r.ParseMultipartForm(50 << 20) // limit to 50MB
+	if err != nil {
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte(fmt.Sprintf(`<script>showToast("Błąd przesyłania plików: %v", "error");</script>`, err)))
+		return
+	}
+
+	files := r.MultipartForm.File["files"]
+	if len(files) == 0 {
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte(`<script>showToast("Nie wybrano żadnych plików do przesłania.", "error");</script>`))
+		return
+	}
+
+	destDir := filepath.Join(s.clientDir, svc.Name)
+	_ = os.MkdirAll(destDir, 0755)
+
+	uploadedCount := 0
+	for _, fileHeader := range files {
+		file, err := fileHeader.Open()
+		if err != nil {
+			log.Printf("Failed to open uploaded file %s: %v", fileHeader.Filename, err)
+			continue
+		}
+		defer file.Close()
+
+		filename := filepath.Base(fileHeader.Filename)
+		finalPath := filepath.Join(destDir, filename)
+
+		out, err := os.Create(finalPath)
+		if err != nil {
+			log.Printf("Failed to create file on disk %s: %v", finalPath, err)
+			continue
+		}
+		defer out.Close()
+
+		_, err = io.Copy(out, file)
+		if err != nil {
+			log.Printf("Failed to copy file content to %s: %v", finalPath, err)
+			continue
+		}
+
+		_, err = s.db.CreatePhoto(ctx, id, finalPath, "Local", "approved")
+		if err != nil {
+			log.Printf("Failed to create photo record in DB: %v", err)
+			continue
+		}
+		uploadedCount++
+	}
+
+	if uploadedCount > 0 {
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte(fmt.Sprintf(`<script>showToast("Pomyślnie dodano %d zdjęć z dysku.", "success");</script>`, uploadedCount)))
+	} else {
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte(`<script>showToast("Nie udało się zapisać żadnego zdjęcia.", "error");</script>`))
+	}
+
+	s.handleWorkspaceUpdate(w, r, id)
 }
 
 func (s *Server) handleStockSearch(w http.ResponseWriter, r *http.Request) {

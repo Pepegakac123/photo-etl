@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.2] - 2026-07-02
+### Added
+- **Manual Disk File Upload**: Added a visual upload dropzone in the project photos sidebar, allowing users to upload and assign multiple photos directly from their disk to any service.
+- **Manual Gallery Reindexing**: Added an "Update Index" button in the local gallery tab to re-scan and index newly added folders and images on the fly.
+
 ## [1.0.1] - 2026-07-02
 ### Added
 - **Dual AI Classification Mode**: Added separate buttons for fast testing (limit 5 unprocessed images) and full sorting (unlimited, all unprocessed images).
