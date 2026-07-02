@@ -1413,7 +1413,7 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 	gopressOutput := ""
 	if s.cfg.GopressCmdPath != "" {
 		if _, err := os.Stat(s.cfg.GopressCmdPath); err == nil {
-			args := []string{"-i", exportDir}
+			args := []string{"-i", exportDir, "-o", exportDir, "-d"}
 			if s.cfg.GopressUpload {
 				args = append(args, "--upload")
 				if s.cfg.GopressWpDomain != "" {
@@ -1749,7 +1749,7 @@ func (s *Server) handleExportStream(w http.ResponseWriter, r *http.Request) {
 	// Execute GoPress CLI if configured
 	if s.cfg.GopressCmdPath != "" {
 		if _, err := os.Stat(s.cfg.GopressCmdPath); err == nil {
-			args := []string{"-i", exportDir}
+			args := []string{"-i", exportDir, "-o", exportDir, "-d"}
 			if s.cfg.GopressUpload {
 				args = append(args, "--upload")
 				if s.cfg.GopressWpDomain != "" {
