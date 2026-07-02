@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.1] - 2026-07-02
+### Added
+- **Dual AI Classification Mode**: Added separate buttons for fast testing (limit 5 unprocessed images) and full sorting (unlimited, all unprocessed images).
+- **Unprocessed Image Filtering**: AI Vision classification now dynamically queries the database and skips files that have already been classified, fixing the test limit counter issue.
+
 ## [1.0.0] - 2026-07-02
 ### Added
 - **Cross-Platform Release Workflow**: Added GitHub Actions workflow to build and release static compiled binaries for Linux, Windows (AMD64), and macOS (AMD64 & ARM64).

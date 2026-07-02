@@ -174,25 +174,40 @@ func (s *Server) handleSortScreenshotsStream(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// Filter only image files
+	processedPaths, err := s.db.GetAllPhotoPaths(ctx)
+	if err != nil {
+		sendLog(fmt.Sprintf("[ERR] Błąd odczytu bazy danych: %v", err))
+		return
+	}
+
+	// Filter only image files that are not already in DB
 	var imageFiles []os.DirEntry
 	for _, file := range files {
 		if !file.IsDir() && scanIsImage(file.Name()) {
-			imageFiles = append(imageFiles, file)
+			filePath := filepath.Join(screenshotsFolder, file.Name())
+			if !processedPaths[filePath] {
+				imageFiles = append(imageFiles, file)
+			}
 		}
 	}
 
 	if len(imageFiles) == 0 {
-		sendLog("[SYSTEM] Brak nowych zdjęć w folderze zrzutów do sklasyfikowania.")
+		sendLog("[SYSTEM] Brak nowych (nieposortowanych) zdjęć w folderze zrzutów do sklasyfikowania.")
 		sendProgress(100, "Zakończono!")
 		send("complete", "done")
 		return
 	}
 
-	// LIMIT TO FIRST 5 PHOTOS AS REQUESTED FOR TESTING
-	if len(imageFiles) > 5 {
-		imageFiles = imageFiles[:5]
-		sendLog(fmt.Sprintf("[SYSTEM] Ograniczono klasyfikację do pierwszych 5 zdjęć w celach testowych."))
+	mode := r.URL.Query().Get("mode")
+	if mode == "test" {
+		if len(imageFiles) > 5 {
+			imageFiles = imageFiles[:5]
+			sendLog(fmt.Sprintf("[SYSTEM] Tryb testowy: Ograniczono klasyfikację do pierwszych 5 nieposortowanych zdjęć."))
+		} else {
+			sendLog(fmt.Sprintf("[SYSTEM] Tryb testowy: Znaleziono %d nieposortowanych zdjęć.", len(imageFiles)))
+		}
+	} else {
+		sendLog(fmt.Sprintf("[SYSTEM] Tryb pełny: Uruchamianie klasyfikacji dla wszystkich %d nieposortowanych zdjęć.", len(imageFiles)))
 	}
 
 	sendLog(fmt.Sprintf("[SYSTEM] Uruchamianie klasyfikacji dla %d zdjęć...", len(imageFiles)))

@@ -351,7 +351,7 @@
             document.getElementById('client-modal').classList.add('hidden');
         };
 
-        window.startSort = function() {
+        window.startSort = function(mode) {
             const modal = document.getElementById('sort-modal');
             const statusText = document.getElementById('sort-status-text');
             const percentText = document.getElementById('sort-progress-percent');
@@ -370,7 +370,7 @@
             modal.classList.remove('hidden');
 
             // Establish EventSource
-            const eventSource = new EventSource('/client/sort-screenshots/stream');
+            const eventSource = new EventSource('/client/sort-screenshots/stream?mode=' + (mode || 'test'));
 
             eventSource.addEventListener('progress', function(e) {
                 const percent = e.data;

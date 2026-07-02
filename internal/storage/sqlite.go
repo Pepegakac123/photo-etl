@@ -418,5 +418,23 @@ func (d *DB) UpdateServiceContextDescription(ctx context.Context, id int64, desc
 	return err
 }
 
+// GetAllPhotoPaths returns all file paths of photos in DB.
+func (d *DB) GetAllPhotoPaths(ctx context.Context) (map[string]bool, error) {
+	rows, err := d.db.QueryContext(ctx, "SELECT file_path FROM photos")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	paths := make(map[string]bool)
+	for rows.Next() {
+		var path string
+		if err := rows.Scan(&path); err == nil {
+			paths[path] = true
+		}
+	}
+	return paths, nil
+}
+
 
 
