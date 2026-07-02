@@ -1413,7 +1413,7 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 	gopressOutput := ""
 	if s.cfg.GopressCmdPath != "" {
 		if _, err := os.Stat(s.cfg.GopressCmdPath); err == nil {
-			args := []string{"-i", exportDir, "-o", exportDir, "-d"}
+			args := []string{"-i", exportDir}
 			if s.cfg.GopressUpload {
 				args = append(args, "--upload")
 				if s.cfg.GopressWpDomain != "" {
@@ -1749,7 +1749,7 @@ func (s *Server) handleExportStream(w http.ResponseWriter, r *http.Request) {
 	// Execute GoPress CLI if configured
 	if s.cfg.GopressCmdPath != "" {
 		if _, err := os.Stat(s.cfg.GopressCmdPath); err == nil {
-			args := []string{"-i", exportDir, "-o", exportDir, "-d"}
+			args := []string{"-i", exportDir}
 			if s.cfg.GopressUpload {
 				args = append(args, "--upload")
 				if s.cfg.GopressWpDomain != "" {
@@ -1896,7 +1896,7 @@ func (s *Server) mergeNonClientPhotosToGallery(ctx context.Context, exportDir st
 				}
 				
 				optFilename := strings.TrimSuffix(filename, filepath.Ext(filename)) + ".webp"
-				optFilePath := filepath.Join(exportDir, svc.Name, optFilename)
+				optFilePath := filepath.Join(exportDir, "webp", svc.Name, optFilename)
 
 				if _, err := os.Stat(optFilePath); err == nil {
 					destDir := filepath.Join(s.cfg.LocalGalleryPath, svc.Name)
