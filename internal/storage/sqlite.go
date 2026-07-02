@@ -481,5 +481,41 @@ func (d *DB) RejectPendingPhotos(ctx context.Context, serviceID int64) (int64, e
 	return res.RowsAffected()
 }
 
+type PhotoAssignment struct {
+	ServiceID   int64
+	ServiceName string
+	Status      string
+}
+
+// GetPhotoServiceAssignments returns a map of file paths to their active service assignments.
+func (d *DB) GetPhotoServiceAssignments(ctx context.Context) (map[string][]*PhotoAssignment, error) {
+	query := `
+	SELECT 
+		p.file_path, 
+		p.service_id, 
+		s.name AS service_name, 
+		p.status 
+	FROM photos p
+	JOIN services s ON p.service_id = s.id
+	WHERE p.status != 'rejected'
+	`
+	rows, err := d.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query photo service assignments: %w", err)
+	}
+	defer rows.Close()
+
+	assignments := make(map[string][]*PhotoAssignment)
+	for rows.Next() {
+		var filePath string
+		var item PhotoAssignment
+		if err := rows.Scan(&filePath, &item.ServiceID, &item.ServiceName, &item.Status); err != nil {
+			return nil, fmt.Errorf("failed to scan assignment row: %w", err)
+		}
+		assignments[filePath] = append(assignments[filePath], &item)
+	}
+	return assignments, nil
+}
+
 
 

@@ -65,6 +65,20 @@ func (s *Server) ParseTemplates() error {
 		"urlEscape": func(str string) string {
 			return url.QueryEscape(str)
 		},
+		"dict": func(values ...interface{}) (map[string]interface{}, error) {
+			if len(values)%2 != 0 {
+				return nil, fmt.Errorf("invalid dict call: must have even number of arguments")
+			}
+			dict := make(map[string]interface{}, len(values)/2)
+			for i := 0; i < len(values); i += 2 {
+				key, ok := values[i].(string)
+				if !ok {
+					return nil, fmt.Errorf("dict keys must be strings")
+				}
+				dict[key] = values[i+1]
+			}
+			return dict, nil
+		},
 		"baseName": func(str string) string {
 			return filepath.Base(str)
 		},
@@ -254,18 +268,11 @@ func (s *Server) getUnmatchedPhotosList(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 
-	activePaths, err := s.db.GetActivePhotoPaths(ctx)
-	if err != nil {
-		return nil, err
-	}
-
 	var unmatched []string
 	for _, file := range files {
 		if !file.IsDir() && scanIsImage(file.Name()) {
 			fullPath := filepath.Join(screenshotsFolder, file.Name())
-			if !activePaths[fullPath] {
-				unmatched = append(unmatched, fullPath)
-			}
+			unmatched = append(unmatched, fullPath)
 		}
 	}
 
@@ -286,16 +293,23 @@ func (s *Server) handleUnmatchedPhotos(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	assignments, err := s.db.GetPhotoServiceAssignments(ctx)
+	if err != nil {
+		assignments = make(map[string][]*storage.PhotoAssignment)
+	}
+
 	// Convert absolute paths to objects containing display details
 	type viewPhoto struct {
 		AbsolutePath string
 		Filename     string
+		Assignments  []*storage.PhotoAssignment
 	}
 	var viewPhotos []viewPhoto
 	for _, p := range photos {
 		viewPhotos = append(viewPhotos, viewPhoto{
 			AbsolutePath: p,
 			Filename:     filepath.Base(p),
+			Assignments:  assignments[p],
 		})
 	}
 
@@ -339,12 +353,48 @@ func (s *Server) handleManualMatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	services, err := s.db.ListServices(ctx)
+	if err != nil {
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte(fmt.Sprintf(`<script>showToast("Błąd wczytywania usług: %v", "error");</script>`, err)))
+		return
+	}
+
+	assignments, err := s.db.GetPhotoServiceAssignments(ctx)
+	var photoAssignments []*storage.PhotoAssignment
+	if err == nil {
+		photoAssignments = assignments[filePath]
+	}
+
+	type viewPhoto struct {
+		AbsolutePath string
+		Filename     string
+		Assignments  []*storage.PhotoAssignment
+	}
+
+	cardData := map[string]interface{}{
+		"Photo": viewPhoto{
+			AbsolutePath: filePath,
+			Filename:     filepath.Base(filePath),
+			Assignments:  photoAssignments,
+		},
+		"Services": services,
+	}
+
 	w.Header().Set("Content-Type", "text/html")
+
+	// Render the updated card (replacing the old card in place)
+	err = s.tmpl.ExecuteTemplate(w, "unmatched_photo_card", cardData)
+	if err != nil {
+		log.Printf("Failed to execute unmatched_photo_card template: %v", err)
+	}
+
 	var unmatchedCount int
 	if s.clientDir != "" {
 		unmatchedList, _ := s.getUnmatchedPhotosList(ctx)
 		unmatchedCount = len(unmatchedList)
 	}
+
 	w.Write([]byte(fmt.Sprintf(`
 		<div hx-swap-oob="beforeend:body"><script>showToast("Zdjęcie dopasowane pomyślnie do usługi: %s", "success");</script></div>
 		<span id="unmatched-count-badge" hx-swap-oob="true" class="px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[10px] font-bold font-mono">

@@ -32,47 +32,67 @@
         {{ else }}
         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 pb-8">
             {{ range .Photos }}
-            <div class="glass border border-[#23314B] rounded-2xl overflow-hidden flex flex-col shadow-lg transition duration-200 hover:border-indigo-500/50 hover:shadow-indigo-500/5 group h-[320px]">
-                
-                <!-- Photo Thumbnail -->
-                <div class="h-44 bg-black/40 relative overflow-hidden shrink-0 border-b border-[#23314B] flex items-center justify-center">
-                    <img src="/local-media?path={{ .AbsolutePath }}" 
-                         alt="{{ .Filename }}"
-                         class="w-full h-full object-cover transition duration-300 group-hover:scale-105"
-                         loading="lazy">
-                </div>
-
-                <!-- Info and Matching Form -->
-                <div class="p-3.5 flex-1 flex flex-col justify-between min-h-0">
-                    <div class="min-w-0 mb-2">
-                        <p class="text-[10px] text-gray-500 font-mono truncate" title="{{ .AbsolutePath }}">
-                            {{ .Filename }}
-                        </p>
-                    </div>
-
-                    <form hx-post="/photos/manual-match" hx-target="closest .glass" hx-swap="delete" class="mt-auto">
-                        <input type="hidden" name="path" value="{{ .AbsolutePath }}">
-                        <div class="space-y-2">
-                            <select name="service_id" required
-                                    class="w-full bg-[#0E1524] border border-[#23314B] hover:border-[#3A4E72] rounded-lg px-2.5 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-indigo-500 transition font-sans cursor-pointer">
-                                <option value="" disabled selected>Wybierz usługę...</option>
-                                {{ range $.Services }}
-                                <option value="{{ .ID }}">{{ .Name }}</option>
-                                {{ end }}
-                            </select>
-                            <button type="submit" 
-                                    class="w-full py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold rounded-lg transition duration-200 active:scale-[0.98] shadow-md flex items-center justify-center gap-1.5">
-                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-                                </svg>
-                                <span>Przypisz ręcznie</span>
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
+                {{ template "unmatched_photo_card" dict "Photo" . "Services" $.Services }}
             {{ end }}
         </div>
         {{ end }}
     </div>
 </div>
+
+{{ define "unmatched_photo_card" }}
+<div class="glass border border-[#23314B] rounded-2xl overflow-hidden flex flex-col shadow-lg transition duration-200 hover:border-indigo-500/50 hover:shadow-indigo-500/5 group min-h-[350px]">
+    
+    <!-- Photo Thumbnail -->
+    <div class="h-44 bg-black/40 relative overflow-hidden shrink-0 border-b border-[#23314B] flex items-center justify-center">
+        <img src="/local-media?path={{ urlEscape .Photo.AbsolutePath }}" 
+             alt="{{ .Photo.Filename }}"
+             class="w-full h-full object-cover transition duration-300 group-hover:scale-105"
+             loading="lazy">
+    </div>
+
+    <!-- Info and Matching Form -->
+    <div class="p-3.5 flex-1 flex flex-col justify-between min-h-0">
+        <div class="min-w-0 mb-2">
+            <p class="text-[10px] text-gray-500 font-mono truncate mb-2" title="{{ .Photo.AbsolutePath }}">
+                {{ .Photo.Filename }}
+            </p>
+
+            <!-- Associated Services List -->
+            <div class="mb-2">
+                {{ if .Photo.Assignments }}
+                    <p class="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Wybrane w usługach:</p>
+                    <div class="flex flex-wrap gap-1 max-h-16 overflow-y-auto pr-1">
+                        {{ range .Photo.Assignments }}
+                            <span class="px-1.5 py-0.5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-[9px] font-semibold rounded truncate max-w-[120px]" title="{{ .ServiceName }}">
+                                {{ .ServiceName }}
+                            </span>
+                        {{ end }}
+                    </div>
+                {{ else }}
+                    <p class="text-[9px] text-gray-500 italic">Brak przypisanych usług</p>
+                {{ end }}
+            </div>
+        </div>
+
+        <form hx-post="/photos/manual-match" hx-target="closest .glass" hx-swap="outerHTML" class="mt-auto">
+            <input type="hidden" name="path" value="{{ .Photo.AbsolutePath }}">
+            <div class="space-y-2">
+                <select name="service_id" required
+                        class="w-full bg-[#0E1524] border border-[#23314B] hover:border-[#3A4E72] rounded-lg px-2.5 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-indigo-500 transition font-sans cursor-pointer">
+                    <option value="" disabled selected>Dodaj do usługi...</option>
+                    {{ range $.Services }}
+                    <option value="{{ .ID }}">{{ .Name }}</option>
+                    {{ end }}
+                </select>
+                <button type="submit" 
+                        class="w-full py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold rounded-lg transition duration-200 active:scale-[0.98] shadow-md flex items-center justify-center gap-1.5">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                    </svg>
+                    <span>Przypisz ręcznie</span>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{{ end }}
