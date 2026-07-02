@@ -340,7 +340,7 @@
             </div>
 
             <!-- Form -->
-            <form hx-post="/client/select" class="space-y-4">
+            <form hx-post="/client/select" onsubmit="showLoadingFeedback(this, 'client_country')" class="space-y-4">
                 <div class="space-y-1.5">
                     <label for="client_path_modal" class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Ścieżka do katalogu klienta</label>
                     <input type="text" id="client_path_modal" name="client_path" placeholder="np. /home/kacper/projects/photo-etl/test_client" required
@@ -358,6 +358,14 @@
                         <option value="FR">Francja (FR)</option>
                         <option value="IT">Włochy (IT)</option>
                     </select>
+                </div>
+
+                <div class="client-load-status-msg text-[11px] text-center text-indigo-400 font-medium hidden animate-pulse mt-2 flex items-center justify-center gap-2 py-2">
+                    <svg class="animate-spin h-4 w-4 text-indigo-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span class="load-text-span">Inicjalizacja projektu...</span>
                 </div>
 
                 <div class="flex justify-end gap-3 pt-2">
@@ -378,6 +386,28 @@
         };
         window.closeClientModal = function() {
             document.getElementById('client-modal').classList.add('hidden');
+        };
+        window.showLoadingFeedback = function(form, selectName) {
+            const selectEl = form.querySelector(`select[name="${selectName}"]`);
+            const country = selectEl ? selectEl.value : 'PL';
+            const statusDiv = form.querySelector('.client-load-status-msg');
+            if (statusDiv) {
+                const textSpan = statusDiv.querySelector('.load-text-span');
+                if (textSpan) {
+                    if (country !== 'PL') {
+                        textSpan.innerText = 'Trwa proces tłumaczenia nazw usług na język polski...';
+                    } else {
+                        textSpan.innerText = 'Inicjalizacja projektu...';
+                    }
+                }
+                statusDiv.classList.remove('hidden');
+            }
+            // Disable submit buttons to prevent double click
+            const btn = form.querySelector('button[type="submit"]');
+            if (btn) {
+                btn.disabled = true;
+                btn.classList.add('opacity-50', 'pointer-events-none');
+            }
         };
 
         window.startSort = function(mode) {
@@ -529,7 +559,7 @@
             <p class="text-xs text-gray-400">Podaj ścieżkę do lokalnego folderu klienta, aby rozpocząć procesowanie zdjęć.</p>
         </div>
 
-        <form hx-post="/client/select" hx-target="#client-form-error" hx-indicator="#client-load-indicator" class="space-y-4">
+        <form hx-post="/client/select" hx-target="#client-form-error" onsubmit="showLoadingFeedback(this, 'client_country')" class="space-y-4">
             <div class="space-y-1.5">
                 <label for="client_path" class="text-xs font-bold text-gray-400 uppercase tracking-wide">Katalog roboczy klienta</label>
                 <input type="text" id="client_path" name="client_path" required
@@ -552,12 +582,16 @@
 
             <div id="client-form-error" class="text-xs text-rose-400 font-medium"></div>
 
-            <button type="submit" class="w-full py-3 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold rounded-xl shadow-md hover:shadow-indigo-500/20 transition duration-200 flex items-center justify-center gap-2 active:scale-[0.98]">
-                <span>Wczytaj i Inicjalizuj</span>
-                <svg id="client-load-indicator" class="animate-spin h-4 w-4 text-white htmx-indicator" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <div class="client-load-status-msg text-[11px] text-center text-indigo-400 font-medium hidden animate-pulse mt-2 flex items-center justify-center gap-2 py-2">
+                <svg class="animate-spin h-4 w-4 text-indigo-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
+                <span class="load-text-span">Inicjalizacja projektu...</span>
+            </div>
+
+            <button type="submit" class="w-full py-3 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold rounded-xl shadow-md hover:shadow-indigo-500/20 transition duration-200 flex items-center justify-center gap-2 active:scale-[0.98]">
+                <span>Wczytaj i Inicjalizuj</span>
             </button>
         </form>
     </div>
