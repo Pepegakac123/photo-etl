@@ -2,9 +2,7 @@ package ui
 
 import (
 	"bufio"
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"html"
 	"html/template"
@@ -950,9 +948,9 @@ func (s *Server) handleEnhancePrompt(w http.ResponseWriter, r *http.Request) {
 		currentPrompt = svc.Name
 	}
 
-	if s.cfg.OpenAIApiKey == "" {
+	if s.cfg.NanoBananaKey == "" {
 		w.Header().Set("Content-Type", "text/html")
-		w.Write([]byte(`<script>showToast("Skonfiguruj najpierw klucz OpenAI w ustawieniach, aby ulepszać prompty.", "error");</script>`))
+		w.Write([]byte(`<script>showToast("Skonfiguruj najpierw klucz Nano Banana w ustawieniach, aby ulepszać prompty.", "error");</script>`))
 		return
 	}
 
@@ -974,8 +972,6 @@ func (s *Server) handleEnhancePrompt(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) generateEnhancedPrompt(ctx context.Context, serviceName, contextDesc string) (string, error) {
-	url := "https://api.openai.com/v1/chat/completions"
-
 	systemPrompt := `Jesteś ekspertem od promptowania modeli generowania obrazów (takich jak Imagen/Midjourney/Gemini).
 Twoim zadaniem jest przekształcić podaną nazwę usługi budowlano-remontowej oraz jej kontekst w szczegółowy, kreatywny i zróżnicowany prompt w języku angielskim.
 
@@ -987,58 +983,15 @@ BARDZO WAŻNE WYTYCZNE DOTYCZĄCE LUDZI I KOMPOZYCJI:
 Zadbaj o to, by każda wygenerowana scena była unikalna, dodając losowe kreatywne elementy (np. różne warunki oświetleniowe, kąty kamery, detale materiałowe, kolory).
 Zwróć TYLKO i wyłącznie gotowy, czysty prompt w języku angielskim (maksymalnie 3-4 zdania). Nie dodawaj cudzysłowów ani żadnych słów wstępnych.`
 
-	userPrompt := fmt.Sprintf("Nazwa usługi: %s\nKontekst: %s", serviceName, contextDesc)
+	fullPrompt := fmt.Sprintf("%s\n\nNazwa usługi: %s\nKontekst: %s", systemPrompt, serviceName, contextDesc)
 
-	payload := map[string]interface{}{
-		"model": "gpt-4o-mini",
-		"messages": []map[string]string{
-			{"role": "system", "content": systemPrompt},
-			{"role": "user", "content": userPrompt},
-		},
-		"temperature": 1.0,
-	}
-
-	bodyBytes, err := json.Marshal(payload)
+	// Use gemini-2.5-flash-lite via the Banana client (Interactions API)
+	enhancedPrompt, err := s.bananaClient.GenerateText(ctx, "gemini-2.5-flash-lite", fullPrompt)
 	if err != nil {
 		return "", err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(bodyBytes))
-	if err != nil {
-		return "", err
-	}
-	req.Header.Set("Authorization", "Bearer "+s.cfg.OpenAIApiKey)
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("OpenAI API error (%d): %s", resp.StatusCode, string(respBody))
-	}
-
-	var res struct {
-		Choices []struct {
-			Message struct {
-				Content string `json:"content"`
-			} `json:"message"`
-		} `json:"choices"`
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
-		return "", err
-	}
-
-	if len(res.Choices) == 0 {
-		return "", fmt.Errorf("empty response choices from OpenAI")
-	}
-
-	return strings.TrimSpace(res.Choices[0].Message.Content), nil
+	return strings.TrimSpace(enhancedPrompt), nil
 }
 
 func (s *Server) handleGenerateImage(w http.ResponseWriter, r *http.Request) {

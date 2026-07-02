@@ -246,3 +246,69 @@ func (c *BananaClient) writeMockImage(outputPath string) error {
 
 	return os.WriteFile(outputPath, data, 0644)
 }
+
+func (c *BananaClient) GenerateText(ctx context.Context, modelName, prompt string) (string, error) {
+	if c.apiKey == "" {
+		// Mock development response if no key is set
+		return "Mocked enhanced text prompt description in English: professional view of repair work.", nil
+	}
+
+	modelToUse := modelName
+	if modelToUse == "" {
+		modelToUse = "gemini-2.5-flash-lite"
+	}
+
+	payload := interactionsRequest{
+		Model: modelToUse,
+		Input: []contentPart{
+			{
+				Type: "text",
+				Text: prompt,
+			},
+		},
+	}
+
+	bodyBytes, err := json.Marshal(payload)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL, bytes.NewBuffer(bodyBytes))
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("x-goog-api-key", c.apiKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("gemini api returned status code: %d, response: %s", resp.StatusCode, string(respBody))
+	}
+
+	var interactionsResp interactionsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&interactionsResp); err != nil {
+		return "", fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	// Search for text model output
+	for i := len(interactionsResp.Steps) - 1; i >= 0; i-- {
+		step := interactionsResp.Steps[i]
+		if step.Type == "model_output" {
+			for j := len(step.Content) - 1; j >= 0; j-- {
+				block := step.Content[j]
+				if block.Type == "text" && block.Text != "" {
+					return block.Text, nil
+				}
+			}
+		}
+	}
+
+	return "", fmt.Errorf("no text output found in gemini response")
+}
