@@ -40,6 +40,9 @@
                          alt="{{ .Filename }}"
                          class="w-full h-full object-cover transition duration-300 group-hover:scale-105"
                          loading="lazy">
+                    <span class="absolute bottom-2 left-2 px-2 py-0.5 text-[10px] font-bold rounded bg-black/60 backdrop-blur-sm text-gray-300 border border-gray-500/20">
+                        {{ fileResolution .AbsolutePath }}
+                    </span>
                 </div>
 
                 <!-- Info and Matching Form -->

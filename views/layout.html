@@ -173,7 +173,7 @@
             }, 4000);
         };
 
-        window.startExport = function() {
+        window.startExport = function(force) {
             const modal = document.getElementById('export-modal');
             const statusText = document.getElementById('export-status-text');
             const percentText = document.getElementById('export-progress-percent');
@@ -181,7 +181,8 @@
             const consoleDiv = document.getElementById('export-console');
             const closeBtn = document.getElementById('export-modal-close-btn');
             const actionsDiv = document.getElementById('export-modal-actions');
-
+            const forceBtn = document.getElementById('export-modal-force-btn');
+ 
             // Reset UI
             statusText.innerText = "Nawiązywanie połączenia...";
             percentText.innerText = "0%";
@@ -189,21 +190,33 @@
             consoleDiv.innerHTML = '<div class="text-indigo-400 font-bold">[SYSTEM] Inicjalizacja strumienia eksportu...</div>';
             closeBtn.disabled = true;
             actionsDiv.classList.add('hidden');
+            if (forceBtn) {
+                forceBtn.classList.add('hidden');
+            }
             modal.classList.remove('hidden');
-
+ 
             // Establish EventSource
-            const eventSource = new EventSource('/export/stream');
-
+            const url = force ? '/export/stream?force=true' : '/export/stream';
+            const eventSource = new EventSource(url);
+ 
             eventSource.addEventListener('progress', function(e) {
                 const percent = e.data;
                 percentText.innerText = percent + "%";
                 progressBar.style.width = percent + "%";
             });
-
+ 
             eventSource.addEventListener('status', function(e) {
                 statusText.innerText = e.data;
             });
-
+ 
+            eventSource.addEventListener('validation_error', function(e) {
+                if (forceBtn) {
+                    forceBtn.classList.remove('hidden');
+                }
+                closeBtn.disabled = false;
+                actionsDiv.classList.remove('hidden');
+            });
+ 
             eventSource.addEventListener('log', function(e) {
                 const line = document.createElement('div');
                 line.innerText = e.data;
@@ -217,7 +230,7 @@
                 consoleDiv.appendChild(line);
                 consoleDiv.scrollTop = consoleDiv.scrollHeight;
             });
-
+ 
             eventSource.addEventListener('complete', function(e) {
                 statusText.innerText = "Eksport zakończony!";
                 percentText.innerText = "100%";
@@ -228,13 +241,13 @@
                 line.innerText = '[SYSTEM] Proces zakończony powodzeniem.';
                 consoleDiv.appendChild(line);
                 consoleDiv.scrollTop = consoleDiv.scrollHeight;
-
+ 
                 // Enable close
                 closeBtn.disabled = false;
                 actionsDiv.classList.remove('hidden');
                 eventSource.close();
             });
-
+ 
             eventSource.addEventListener('error', function(e) {
                 if (eventSource.readyState === EventSource.CLOSED) {
                     return;
@@ -245,7 +258,7 @@
                 line.innerText = '[SYSTEM] Błąd połączenia ze strumieniem eksportu.';
                 consoleDiv.appendChild(line);
                 consoleDiv.scrollTop = consoleDiv.scrollHeight;
-
+ 
                 closeBtn.disabled = false;
                 actionsDiv.classList.remove('hidden');
                 eventSource.close();
@@ -294,8 +307,11 @@
                 <div class="text-gray-500">// Oczekiwanie na uruchomienie strumienia...</div>
             </div>
 
-            <!-- Action Button (only visible when complete) -->
-            <div id="export-modal-actions" class="pt-3 border-t border-[#23314B] flex justify-end shrink-0 hidden">
+            <!-- Action Button (only visible when complete or on validation error) -->
+            <div id="export-modal-actions" class="pt-3 border-t border-[#23314B] flex justify-end gap-3 shrink-0 hidden">
+                <button id="export-modal-force-btn" onclick="startExport(true)" class="px-5 py-2 bg-amber-650 hover:bg-amber-600 text-white text-xs font-bold rounded-lg transition shadow hidden">
+                    Ignoruj i eksportuj mimo to
+                </button>
                 <button onclick="closeExportModal()" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg transition shadow">
                     Zamknij
                 </button>
@@ -329,6 +345,19 @@
                     <label for="client_path_modal" class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Ścieżka do katalogu klienta</label>
                     <input type="text" id="client_path_modal" name="client_path" placeholder="np. /home/kacper/projects/photo-etl/test_client" required
                            class="w-full bg-[#0E1524] border border-[#23314B] rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 transition font-sans">
+                </div>
+
+                <div class="space-y-1.5">
+                    <label for="client_country_modal" class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Kraj pochodzenia klienta</label>
+                    <select id="client_country_modal" name="client_country"
+                            class="w-full bg-[#0E1524] border border-[#23314B] rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 transition font-sans cursor-pointer">
+                        <option value="PL" selected>Polska (PL)</option>
+                        <option value="DE">Niemcy (DE)</option>
+                        <option value="US">USA / Wielka Brytania (US/GB)</option>
+                        <option value="NL">Holandia (NL)</option>
+                        <option value="FR">Francja (FR)</option>
+                        <option value="IT">Włochy (IT)</option>
+                    </select>
                 </div>
 
                 <div class="flex justify-end gap-3 pt-2">
@@ -506,6 +535,19 @@
                 <input type="text" id="client_path" name="client_path" required
                        placeholder="np. ./test_client" 
                        class="w-full px-4 py-3 bg-[#0A0F1A] border border-[#23314B] rounded-xl text-sm text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 transition duration-150 font-mono">
+            </div>
+
+            <div class="space-y-1.5">
+                <label for="client_country" class="text-xs font-bold text-gray-400 uppercase tracking-wide">Kraj pochodzenia klienta</label>
+                <select id="client_country" name="client_country"
+                        class="w-full bg-[#0A0F1A] border border-[#23314B] rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500 transition font-sans cursor-pointer">
+                    <option value="PL" selected>Polska (PL)</option>
+                    <option value="DE">Niemcy (DE)</option>
+                    <option value="US">USA / Wielka Brytania (US/GB)</option>
+                    <option value="NL">Holandia (NL)</option>
+                    <option value="FR">Francja (FR)</option>
+                    <option value="IT">Włochy (IT)</option>
+                </select>
             </div>
 
             <div id="client-form-error" class="text-xs text-rose-400 font-medium"></div>

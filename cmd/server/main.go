@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/Pepegakac123/photo-etl/internal/config"
@@ -28,6 +29,18 @@ func (tw translateWrapper) Translate(ctx context.Context, text, fromLang, toLang
 }
 
 func main() {
+	if err := run(); err != nil {
+		log.Printf("BŁĄD KRYTYCZNY: %v", err)
+		if os.Getenv("NO_PAUSE") == "" && runtime.GOOS == "windows" {
+			fmt.Println("\nNaciśnij klawisz Enter, aby zamknąć...")
+			var input string
+			fmt.Scanln(&input)
+		}
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	defaultConfig, _ := config.GetDefaultConfigPath()
 	configPath := flag.String("config", defaultConfig, "path to config file")
 	clientDir := flag.String("client", "", "path to client directory to process")
@@ -38,20 +51,19 @@ func main() {
 
 	if *versionFlag {
 		fmt.Printf("Overflow Photo ETL version %s\n", version.CurrentVersion)
-		os.Exit(0)
+		return nil
 	}
 
 	if *updateFlag {
 		fmt.Print("Sprawdzanie aktualizacji... ")
 		newerReleases, err := version.CheckForUpdates("Pepegakac123/photo-etl")
 		if err != nil {
-			fmt.Printf("\nBłąd podczas sprawdzania aktualizacji: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("błąd podczas sprawdzania aktualizacji: %w", err)
 		}
 
 		if len(newerReleases) == 0 {
 			fmt.Println("Masz już najnowszą wersję.")
-			os.Exit(0)
+			return nil
 		}
 
 		latestRelease := newerReleases[len(newerReleases)-1]
@@ -72,12 +84,11 @@ func main() {
 
 		fmt.Println("Pobieranie i instalowanie aktualizacji...")
 		if err := version.PerformUpdate(latestRelease); err != nil {
-			fmt.Printf("Błąd podczas aktualizacji: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("błąd podczas aktualizacji: %w", err)
 		}
 
 		fmt.Println("Aktualizacja zakończona pomyślnie! Uruchom program ponownie.")
-		os.Exit(0)
+		return nil
 	}
 
 	// Ensure binary has correct name (photo-etl)
@@ -93,7 +104,7 @@ func main() {
 		var err error
 		absClientDir, err = filepath.Abs(*clientDir)
 		if err != nil {
-			log.Fatalf("Invalid client directory: %v", err)
+			return fmt.Errorf("invalid client directory: %w", err)
 		}
 
 		// Initialize database inside the client directory (short-lived project DB)
@@ -101,7 +112,7 @@ func main() {
 		log.Printf("Initializing project SQLite database at: %s", dbPath)
 		db, err = storage.InitDB(dbPath)
 		if err != nil {
-			log.Fatalf("Error initializing database: %v", err)
+			return fmt.Errorf("error initializing database: %w", err)
 		}
 	} else {
 		log.Println("No client directory specified at startup. You can load one from the UI homepage.")
@@ -111,7 +122,7 @@ func main() {
 	log.Printf("Starting Overflow Photo ETL...")
 	cfg, err := config.LoadConfig(*configPath)
 	if err != nil {
-		log.Fatalf("Error loading config: %v", err)
+		return fmt.Errorf("error loading config: %w", err)
 	}
 
 	ctx := context.Background()
@@ -120,7 +131,7 @@ func main() {
 	if db != nil {
 		services, err := db.ListServices(ctx)
 		if err != nil {
-			log.Fatalf("Failed to query services: %v", err)
+			return fmt.Errorf("failed to query services: %w", err)
 		}
 
 		if len(services) == 0 {
@@ -128,7 +139,7 @@ func main() {
 			scanner := ingest.NewScanner(db)
 			res, err := scanner.Scan(ctx, absClientDir)
 			if err != nil {
-				log.Fatalf("Failed to scan client directory: %v", err)
+				return fmt.Errorf("failed to scan client directory: %w", err)
 			}
 			log.Printf("Ingestion complete. Registered %d services.", len(res.ServicesAdded))
 		} else {
@@ -164,7 +175,7 @@ func main() {
 	
 	// Parse templates
 	if err := srv.ParseTemplates(); err != nil {
-		log.Fatalf("Failed to parse templates: %v", err)
+		return fmt.Errorf("failed to parse templates: %w", err)
 	}
 
 	addr := fmt.Sprintf("localhost:%d", *port)
@@ -175,6 +186,7 @@ func main() {
 	log.Printf("==================================================")
 
 	if err := http.ListenAndServe(addr, srv); err != nil {
-		log.Fatalf("Server failed: %v", err)
+		return fmt.Errorf("server failed: %w", err)
 	}
+	return nil
 }

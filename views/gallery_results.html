@@ -1,3 +1,6 @@
+<div id="gallery-placeholder" hx-swap-oob="delete"></div>
+<div id="gallery-no-results" hx-swap-oob="delete"></div>
+
 {{ if .IsFallback }}
 <div class="col-span-2 p-3 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-lg text-xs flex items-center gap-2 mb-2">
     <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
@@ -6,7 +9,7 @@
 {{ end }}
 
 {{ if not .Matches }}
-<p class="text-sm text-gray-500 col-span-2">Nie znaleziono pasujących folderów w galerii.</p>
+<p id="gallery-no-results" class="text-sm text-gray-500 col-span-2">Nie znaleziono pasujących folderów w galerii.</p>
 {{ else }}
     {{ range .Matches }}
     <div class="col-span-2 border border-[#23314B] bg-[#0E1524]/60 rounded-xl p-4 space-y-3">
@@ -27,6 +30,9 @@
                 {{ range .Photos }}
                 <div class="aspect-video relative group rounded-lg overflow-hidden border border-[#23314B] bg-black" data-photo-path="{{ . }}">
                     <img src="/local-media?path={{ urlEscape . }}" alt="Gallery Image" class="object-cover w-full h-full group-hover:scale-105 transition duration-200">
+                    <span class="absolute bottom-1 left-1 px-1.5 py-0.5 text-[9px] font-bold rounded bg-black/60 backdrop-blur-sm text-gray-300 border border-gray-500/20 z-10 pointer-events-none">
+                        {{ fileResolution . }}
+                    </span>
                     <button hx-post="/photos/add?service_id={{ $.ServiceID }}&path={{ urlEscape . }}&source=LocalGallery" 
                             hx-target="#project-photos-container"
                             onclick="this.closest('.relative').style.display='none';"

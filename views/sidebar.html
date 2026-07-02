@@ -61,6 +61,11 @@
         <span class="font-semibold text-gray-200 group-hover:text-white transition truncate text-sm">
             {{ .ServiceName }}
         </span>
+        {{ if .PolishTranslation }}
+        <span class="text-[10px] text-indigo-300/80 group-hover:text-indigo-200/90 transition truncate italic">
+            ({{ .PolishTranslation }})
+        </span>
+        {{ end }}
         {{ if .PendingCount }}
         <span class="text-xs text-indigo-400 font-medium">
             {{ .PendingCount }} do weryfikacji

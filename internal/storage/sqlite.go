@@ -17,7 +17,9 @@ type Service struct {
 	Name               string `db:"name"`
 	ContextDescription string `db:"context_description"`
 	Status             string `db:"status"`
+	PolishTranslation  string `db:"polish_translation"`
 }
+
 
 type Photo struct {
 	ID        int64  `db:"id"`
@@ -65,7 +67,8 @@ func InitDB(dataSourceName string) (*DB, error) {
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		name TEXT NOT NULL,
 		context_description TEXT,
-		status TEXT NOT NULL DEFAULT 'pending'
+		status TEXT NOT NULL DEFAULT 'pending',
+		polish_translation TEXT DEFAULT ''
 	);
 
 	CREATE TABLE IF NOT EXISTS photos (
@@ -102,6 +105,9 @@ func InitDB(dataSourceName string) (*DB, error) {
 		return nil, fmt.Errorf("failed to initialize schema: %w", err)
 	}
 
+	// Try to add polish_translation column in case the database was created with an older version
+	_, _ = sqlDB.Exec("ALTER TABLE services ADD COLUMN polish_translation TEXT DEFAULT ''")
+
 	return &DB{db: sqlDB}, nil
 }
 
@@ -130,9 +136,9 @@ func (d *DB) CreateService(ctx context.Context, name string) (int64, error) {
 
 // GetService fetches a service by ID.
 func (d *DB) GetService(ctx context.Context, id int64) (*Service, error) {
-	row := d.db.QueryRowContext(ctx, "SELECT id, name, COALESCE(context_description, ''), status FROM services WHERE id = ?", id)
+	row := d.db.QueryRowContext(ctx, "SELECT id, name, COALESCE(context_description, ''), status, COALESCE(polish_translation, '') FROM services WHERE id = ?", id)
 	var s Service
-	err := row.Scan(&s.ID, &s.Name, &s.ContextDescription, &s.Status)
+	err := row.Scan(&s.ID, &s.Name, &s.ContextDescription, &s.Status, &s.PolishTranslation)
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan service %d: %w", id, err)
 	}
@@ -141,7 +147,7 @@ func (d *DB) GetService(ctx context.Context, id int64) (*Service, error) {
 
 // ListServices returns all services.
 func (d *DB) ListServices(ctx context.Context) ([]*Service, error) {
-	rows, err := d.db.QueryContext(ctx, "SELECT id, name, COALESCE(context_description, ''), status FROM services")
+	rows, err := d.db.QueryContext(ctx, "SELECT id, name, COALESCE(context_description, ''), status, COALESCE(polish_translation, '') FROM services")
 	if err != nil {
 		return nil, fmt.Errorf("failed to query services: %w", err)
 	}
@@ -150,7 +156,7 @@ func (d *DB) ListServices(ctx context.Context) ([]*Service, error) {
 	var services []*Service
 	for rows.Next() {
 		var s Service
-		if err := rows.Scan(&s.ID, &s.Name, &s.ContextDescription, &s.Status); err != nil {
+		if err := rows.Scan(&s.ID, &s.Name, &s.ContextDescription, &s.Status, &s.PolishTranslation); err != nil {
 			return nil, fmt.Errorf("failed to scan service row: %w", err)
 		}
 		services = append(services, &s)
@@ -163,6 +169,15 @@ func (d *DB) UpdateService(ctx context.Context, id int64, contextDescription str
 	_, err := d.db.ExecContext(ctx, "UPDATE services SET context_description = ?, status = ? WHERE id = ?", contextDescription, status, id)
 	if err != nil {
 		return fmt.Errorf("failed to update service %d: %w", id, err)
+	}
+	return nil
+}
+
+// UpdateServiceTranslation updates a service's Polish translation.
+func (d *DB) UpdateServiceTranslation(ctx context.Context, id int64, polishTranslation string) error {
+	_, err := d.db.ExecContext(ctx, "UPDATE services SET polish_translation = ? WHERE id = ?", polishTranslation, id)
+	if err != nil {
+		return fmt.Errorf("failed to update service translation %d: %w", id, err)
 	}
 	return nil
 }
@@ -209,10 +224,11 @@ func (d *DB) UpdatePhotoStatus(ctx context.Context, id int64, status string) err
 }
 
 type ServiceProgress struct {
-	ServiceID     int64
-	ServiceName   string
-	ApprovedCount int
-	PendingCount  int
+	ServiceID         int64
+	ServiceName       string
+	PolishTranslation string
+	ApprovedCount     int
+	PendingCount      int
 }
 
 // GetServiceProgress returns the approved and pending photo counts for all services.
@@ -221,11 +237,12 @@ func (d *DB) GetServiceProgress(ctx context.Context) ([]*ServiceProgress, error)
 	SELECT 
 		s.id, 
 		s.name,
+		COALESCE(s.polish_translation, '') AS polish_translation,
 		SUM(CASE WHEN p.status = 'approved' THEN 1 ELSE 0 END) AS approved_count,
 		SUM(CASE WHEN p.status = 'pending' THEN 1 ELSE 0 END) AS pending_count
 	FROM services s
 	LEFT JOIN photos p ON s.id = p.service_id
-	GROUP BY s.id, s.name
+	GROUP BY s.id, s.name, s.polish_translation
 	`
 	rows, err := d.db.QueryContext(ctx, query)
 	if err != nil {
@@ -236,7 +253,7 @@ func (d *DB) GetServiceProgress(ctx context.Context) ([]*ServiceProgress, error)
 	var progress []*ServiceProgress
 	for rows.Next() {
 		var p ServiceProgress
-		if err := rows.Scan(&p.ServiceID, &p.ServiceName, &p.ApprovedCount, &p.PendingCount); err != nil {
+		if err := rows.Scan(&p.ServiceID, &p.ServiceName, &p.PolishTranslation, &p.ApprovedCount, &p.PendingCount); err != nil {
 			return nil, fmt.Errorf("failed to scan service progress row: %w", err)
 		}
 		progress = append(progress, &p)

@@ -74,6 +74,27 @@ func (s *Server) ParseTemplates() error {
 		"hasPrefix": func(s, prefix string) bool {
 			return strings.HasPrefix(s, prefix)
 		},
+		"photoResolution": func(p storage.Photo) string {
+			if p.Source == "Stock" {
+				return "~1920px"
+			}
+			res := getImageResolution(p.FilePath)
+			if res != "" {
+				return res
+			}
+			return "Nieznana"
+		},
+		"fileResolution": func(filePath string) string {
+			if strings.HasPrefix(filePath, "http://") || strings.HasPrefix(filePath, "https://") {
+				return "~1920px"
+			}
+			res := getImageResolution(filePath)
+			if res != "" {
+				return res
+			}
+			return "Nieznana"
+		},
+
 	}
 
 	tmpl := template.New("").Funcs(funcMap)
@@ -132,12 +153,13 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 type serviceProgressView struct {
-	ServiceID     int64
-	ServiceName   string
-	ApprovedCount int
-	RequiredCount int
-	PendingCount  int
-	Oob           bool
+	ServiceID         int64
+	ServiceName       string
+	PolishTranslation string
+	ApprovedCount     int
+	RequiredCount     int
+	PendingCount      int
+	Oob               bool
 }
 
 func (s *Server) getSidebarData(ctx context.Context) ([]*serviceProgressView, error) {
@@ -152,11 +174,12 @@ func (s *Server) getSidebarData(ctx context.Context) ([]*serviceProgressView, er
 	var data []*serviceProgressView
 	for _, p := range progress {
 		data = append(data, &serviceProgressView{
-			ServiceID:     p.ServiceID,
-			ServiceName:   p.ServiceName,
-			ApprovedCount: p.ApprovedCount,
-			RequiredCount: s.cfg.TargetPhotosPerService,
-			PendingCount:  p.PendingCount,
+			ServiceID:         p.ServiceID,
+			ServiceName:       p.ServiceName,
+			PolishTranslation: p.PolishTranslation,
+			ApprovedCount:     p.ApprovedCount,
+			RequiredCount:     s.cfg.TargetPhotosPerService,
+			PendingCount:      p.PendingCount,
 		})
 	}
 	sort.SliceStable(data, func(i, j int) bool {
@@ -417,11 +440,12 @@ func (s *Server) getSingleServiceProgress(ctx context.Context, serviceID int64) 
 		return nil, err
 	}
 	return &serviceProgressView{
-		ServiceID:     serviceID,
-		ServiceName:   svc.Name,
-		ApprovedCount: 0,
-		RequiredCount: s.cfg.TargetPhotosPerService,
-		PendingCount:  0,
+		ServiceID:         serviceID,
+		ServiceName:       svc.Name,
+		PolishTranslation: svc.PolishTranslation,
+		ApprovedCount:     0,
+		RequiredCount:     s.cfg.TargetPhotosPerService,
+		PendingCount:      0,
 	}, nil
 }
 
@@ -653,6 +677,7 @@ func (s *Server) handleGalleryAutocomplete(w http.ResponseWriter, r *http.Reques
 			<button hx-post="/services/%d/gallery/associate-folder"
 					hx-vals='{"folder_id": "%d"}'
 					hx-target="#gallery-results"
+					hx-swap="beforeend"
 					hx-indicator="#manual-gallery-indicator"
 					onclick="setTimeout(clearAutocomplete, 100)"
 					class="w-full text-left px-4 py-2.5 hover:bg-indigo-600/20 text-xs text-gray-200 hover:text-white transition flex items-center justify-between group active:scale-[0.99] outline-none">
@@ -1462,6 +1487,15 @@ func copyFile(src, dst string) error {
 }
 
 func downloadFile(fileURL, dst string) error {
+	// If it is a raw Unsplash URL, append parameters to download it in target resolution (~1920px)
+	if strings.Contains(fileURL, "unsplash.com") && !strings.Contains(fileURL, "w=") {
+		if strings.Contains(fileURL, "?") {
+			fileURL += "&w=1920&fit=max&q=85"
+		} else {
+			fileURL += "?w=1920&fit=max&q=85"
+		}
+	}
+
 	resp, err := http.Get(fileURL)
 	if err != nil {
 		return err
@@ -1552,6 +1586,9 @@ func (s *Server) handleExportStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	forceStr := r.URL.Query().Get("force")
+	force := forceStr == "true"
+
 	// Validate minimum photo count for each service before exporting
 	hasErrors := false
 	for _, svc := range services {
@@ -1568,14 +1605,19 @@ func (s *Server) handleExportStream(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if approvedCount < s.cfg.TargetPhotosPerService {
-			sendLog(fmt.Sprintf("[ERR] Usługa '%s' nie spełnia minimalnego limitu zdjęć (%d/%d approved). Uzupełnij zdjęcia przed eksportem.", svc.Name, approvedCount, s.cfg.TargetPhotosPerService))
-			hasErrors = true
+			if force {
+				sendLog(fmt.Sprintf("[WARNING] Usługa '%s' nie spełnia minimalnego limitu zdjęć (%d/%d approved). Eksportuję z powodu wymuszenia (force).", svc.Name, approvedCount, s.cfg.TargetPhotosPerService))
+			} else {
+				sendLog(fmt.Sprintf("[ERR] Usługa '%s' nie spełnia minimalnego limitu zdjęć (%d/%d approved). Uzupełnij zdjęcia przed eksportem.", svc.Name, approvedCount, s.cfg.TargetPhotosPerService))
+				hasErrors = true
+			}
 		}
 	}
 
 	if hasErrors {
 		sendLog("[ERR] Eksport przerwany: nie wszystkie usługi spełniają minimalny limit zdjęć.")
 		sendProgress(0, "Błąd eksportu - brakujące zdjęcia")
+		send("validation_error", "true")
 		return
 	}
 
@@ -1847,7 +1889,7 @@ func (s *Server) mergeNonClientPhotosToGallery(ctx context.Context, exportDir st
 		}
 
 		for _, p := range photos {
-			if p.Status == "approved" && p.Source != "Client" {
+			if p.Status == "approved" && (p.Source == "AI" || p.Source == "Stock") {
 				filename := filepath.Base(p.FilePath)
 				if p.Source == "Stock" {
 					filename = fmt.Sprintf("stock_%d.jpg", p.ID)
@@ -1862,10 +1904,25 @@ func (s *Server) mergeNonClientPhotosToGallery(ctx context.Context, exportDir st
 					destPath := filepath.Join(destDir, optFilename)
 					
 					if err := copyFile(optFilePath, destPath); err == nil {
-						if sendLog != nil {
-							sendLog(fmt.Sprintf("  [GALERIA] Skopiowano do galerii lokalnej: %s/%s", svc.Name, optFilename))
+						// Verify that the file was actually copied and has a valid size
+						if info, errStat := os.Stat(destPath); errStat == nil && info.Size() > 0 {
+							if sendLog != nil {
+								sendLog(fmt.Sprintf("  [GALERIA] Pomyślnie skopiowano i zweryfikowano w galerii: %s/%s", svc.Name, optFilename))
+							} else {
+								log.Printf("[GALERIA] Pomyślnie skopiowano i zweryfikowano w galerii: %s/%s", svc.Name, optFilename)
+							}
 						} else {
-							log.Printf("[GALERIA] Skopiowano do galerii lokalnej: %s/%s", svc.Name, optFilename)
+							if sendLog != nil {
+								sendLog(fmt.Sprintf("  [GALERIA][ERR] Błąd weryfikacji pliku po skopiowaniu: %s/%s (pusty lub brak)", svc.Name, optFilename))
+							} else {
+								log.Printf("[GALERIA][ERR] Błąd weryfikacji pliku po skopiowaniu: %s/%s (pusty lub brak)", svc.Name, optFilename)
+							}
+						}
+					} else {
+						if sendLog != nil {
+							sendLog(fmt.Sprintf("  [GALERIA][ERR] Błąd kopiowania do galerii: %v", err))
+						} else {
+							log.Printf("[GALERIA][ERR] Błąd kopiowania do galerii: %v", err)
 						}
 					}
 				}
@@ -1873,3 +1930,21 @@ func (s *Server) mergeNonClientPhotosToGallery(ctx context.Context, exportDir st
 		}
 	}
 }
+
+func getImageResolution(filePath string) string {
+	if filePath == "" || strings.HasPrefix(filePath, "http://") || strings.HasPrefix(filePath, "https://") {
+		return ""
+	}
+	file, err := os.Open(filePath)
+	if err != nil {
+		return ""
+	}
+	defer file.Close()
+
+	config, _, err := image.DecodeConfig(file)
+	if err != nil {
+		return ""
+	}
+	return fmt.Sprintf("%dx%d", config.Width, config.Height)
+}
+

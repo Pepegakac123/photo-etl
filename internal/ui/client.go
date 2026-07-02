@@ -12,6 +12,7 @@ import (
 
 	"github.com/Pepegakac123/photo-etl/internal/ingest"
 	"github.com/Pepegakac123/photo-etl/internal/storage"
+	"github.com/Pepegakac123/photo-etl/internal/translate"
 	"github.com/Pepegakac123/photo-etl/internal/vision"
 )
 
@@ -83,7 +84,31 @@ func (s *Server) handleClientSelect(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Translate services to Polish if country is not PL
+		country := r.FormValue("client_country")
+		if country != "" && strings.ToUpper(country) != "PL" {
+			log.Printf("Translating services to Polish for country %s...", country)
+			createdServices, err := db.ListServices(ctx)
+			if err == nil {
+				for _, svc := range createdServices {
+					// Remove any prefix/suffixes if hybrid named
+					translateText := svc.Name
+					sep := "_"
+					if !strings.Contains(translateText, sep) {
+						sep = "-"
+					}
+					if parts := strings.SplitN(translateText, sep, 2); len(parts) > 1 {
+						translateText = strings.TrimSpace(parts[0])
+					}
 
+					plName, err := translate.Translate(ctx, translateText, "auto", "pl")
+					if err == nil && plName != "" && !strings.EqualFold(plName, svc.Name) {
+						_ = db.UpdateServiceTranslation(ctx, svc.ID, plName)
+						log.Printf("Translated service %s -> %s", svc.Name, plName)
+					}
+				}
+			}
+		}
 
 		log.Printf("Dynamically wczytano klienta. Zarejestrowano %d usług.", len(res.ServicesAdded))
 	} else {

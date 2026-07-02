@@ -4,8 +4,13 @@
     <div class="flex items-center justify-between border-b border-[#23314B] pb-6 shrink-0">
         <div>
             <div class="flex items-center gap-3 mb-1">
-                <h2 class="text-2xl font-extrabold text-white tracking-tight">
+                <h2 class="text-2xl font-extrabold text-white tracking-tight flex items-baseline gap-2">
                     {{ .Service.Name }}
+                    {{ if .Service.PolishTranslation }}
+                    <span class="text-sm font-medium text-indigo-300/80 italic font-sans">
+                        ({{ .Service.PolishTranslation }})
+                    </span>
+                    {{ end }}
                 </h2>
                 <span id="workspace-badge-{{ .Service.ID }}" class="px-2.5 py-1 text-xs font-bold rounded-full {{ if ge .ApprovedCount .RequiredCount }} bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 {{ else }} bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 {{ end }}">
                     Status: {{ .ApprovedCount }} / {{ .RequiredCount }} Zaakceptowane
@@ -57,7 +62,8 @@
                             <p class="text-[10px] text-gray-500">Zaktualizuj bazę danych, jeśli dodałeś nowe foldery/zdjęcia na dysk.</p>
                         </div>
                         <button hx-post="/gallery/index" 
-                                hx-swap="none"
+                                hx-swap="beforeend"
+                                hx-target="body"
                                 class="px-3.5 py-2 bg-[#161F30] hover:bg-[#1E2B44] border border-[#2B3B57] text-[#A5B4FC] hover:text-white rounded-lg transition active:scale-[0.98] flex items-center justify-center gap-1.5 text-[10px] font-bold">
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H17.9"></path>
@@ -143,7 +149,7 @@
                     </script>
 
                     <div id="gallery-results" class="grid grid-cols-2 gap-4 border-t border-[#23314B]/30 pt-6">
-                        <p class="text-xs text-gray-500 col-span-2">Użyj auto-dopasowania lub wyszukaj folder ręcznie powyżej, aby wybrać zdjęcia z galerii lokalnej.</p>
+                        <p id="gallery-placeholder" class="text-xs text-gray-500 col-span-2">Użyj auto-dopasowania lub wyszukaj folder ręcznie powyżej, aby wybrać zdjęcia z galerii lokalnej.</p>
                     </div>
                 </div>
 
@@ -331,21 +337,21 @@
 </h3>
 
 <!-- Manual Upload Form -->
-<form hx-encoding="multipart/form-data" 
+<form id="upload-form"
+      hx-encoding="multipart/form-data" 
       hx-post="/services/{{ .Service.ID }}/photos/upload" 
       hx-target="#project-photos-container"
       hx-indicator="#upload-indicator"
-      class="mb-6 p-4 bg-[#0F1422]/60 border border-dashed border-[#23314B] rounded-2xl flex flex-col items-center justify-center gap-2 hover:border-indigo-500/50 hover:bg-[#0E1524]/80 transition group relative cursor-pointer shrink-0">
-    <input type="file" name="files" multiple accept="image/*" 
-           class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-           onchange="if (this.files.length > 0) { this.form.dispatchEvent(new Event('submit', { bubbles: true })); }">
-    <div class="flex flex-col items-center gap-1.5 pointer-events-none text-center">
-        <svg class="w-7 h-7 text-indigo-400 group-hover:scale-105 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      class="mb-6 p-4 bg-[#0F1422]/60 border border-dashed border-[#23314B] rounded-2xl flex flex-col items-center justify-center gap-2 hover:border-indigo-500/50 hover:bg-[#0E1524]/80 transition group relative shrink-0">
+    <input type="file" id="manual-file-input" name="files" multiple accept="image/*" class="hidden"
+           onchange="if (this.files.length > 0) { htmx.trigger(this.form, 'submit'); }">
+    <label for="manual-file-input" class="w-full h-full flex flex-col items-center justify-center gap-1.5 cursor-pointer text-center py-2">
+        <svg class="w-7 h-7 text-indigo-400 group-hover:scale-105 transition pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path>
         </svg>
-        <span class="text-[11px] font-bold text-gray-300 group-hover:text-white transition">Dodaj zdjęcia z dysku</span>
-        <span class="text-[9px] text-gray-500">Kliknij lub przeciągnij pliki PNG, JPG, WebP</span>
-    </div>
+        <span class="text-[11px] font-bold text-gray-300 group-hover:text-white transition pointer-events-none">Dodaj zdjęcia z dysku</span>
+        <span class="text-[9px] text-gray-500 pointer-events-none">Kliknij, aby wybrać pliki PNG, JPG, WebP</span>
+    </label>
     <!-- Uploading Indicator -->
     <div id="upload-indicator" class="htmx-indicator absolute inset-0 bg-[#0E1524]/90 rounded-2xl flex items-center justify-center gap-2 z-20">
         <svg class="animate-spin h-4 w-4 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -380,6 +386,10 @@
                 <!-- Source Badge -->
                 <span class="absolute top-2 left-2 px-2 py-0.5 text-[10px] font-bold rounded bg-black/60 backdrop-blur-sm text-indigo-300 border border-indigo-500/20">
                     {{ .Source }}
+                </span>
+                <!-- Resolution Badge -->
+                <span class="absolute bottom-2 left-2 px-2 py-0.5 text-[10px] font-bold rounded bg-black/60 backdrop-blur-sm text-gray-300 border border-gray-500/20">
+                    {{ photoResolution . }}
                 </span>
                 <!-- Status Badge -->
                 <span class="absolute top-2 right-2 px-2 py-0.5 text-[10px] font-bold rounded backdrop-blur-sm {{ if eq .Status "approved" }} bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 {{ else }} bg-amber-500/20 text-amber-400 border border-amber-500/30 {{ end }}">
