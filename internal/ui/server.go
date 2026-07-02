@@ -963,8 +963,14 @@ func (s *Server) handleEnhancePrompt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.Write([]byte(enhancedPrompt))
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	escapedPrompt := html.EscapeString(enhancedPrompt)
+	textareaHTML := fmt.Sprintf(`
+		<textarea id="custom_prompt" name="custom_prompt" rows="3" 
+				  placeholder="Np. Prace dekarskie, układanie dachówek ceramicznych na dachu skośnym..."
+				  class="w-full bg-[#0E1524] border border-[#23314B] rounded-lg px-3.5 py-2.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 transition font-sans resize-y">%s</textarea>
+	`, escapedPrompt)
+	w.Write([]byte(textareaHTML))
 }
 
 func (s *Server) generateEnhancedPrompt(ctx context.Context, serviceName, contextDesc string) (string, error) {
@@ -972,8 +978,13 @@ func (s *Server) generateEnhancedPrompt(ctx context.Context, serviceName, contex
 
 	systemPrompt := `Jesteś ekspertem od promptowania modeli generowania obrazów (takich jak Imagen/Midjourney/Gemini).
 Twoim zadaniem jest przekształcić podaną nazwę usługi budowlano-remontowej oraz jej kontekst w szczegółowy, kreatywny i zróżnicowany prompt w języku angielskim.
-Prompt musi opisywać scenę budowlaną (np. zrobioną smartfonem, amatorską, na placu budowy w Niemczech), z detalami takimi jak narzędzia, materiały, kąty oświetlenia i warunki pogodowe.
-Zadbaj o to, by każda wygenerowana scena była unikalna, dodając losowe kreatywne elementy (np. "sunny day", "overcast sky", "worker checking alignment", "fresh mortar", "wooden scaffolds").
+
+BARDZO WAŻNE WYTYCZNE DOTYCZĄCE LUDZI I KOMPOZYCJI:
+- Nie pokazuj całych postaci pracowników ani ich twarzy! Zamiast tego skup się na zbliżeniach (close-ups) na materiały, narzędzia lub wykonywaną pracę.
+- Jeśli w ogóle pokazujesz człowieka, mogą to być wyłącznie części ciała (np. dłonie trzymające narzędzie, ręce układające dachówkę, buty stojące na rusztowaniu). Żadnych twarzy, żadnych pełnych sylwetek.
+- Zdjęcie powinno wyglądać jak profesjonalne zdjęcie stockowe lub autentyczne zbliżenie zrobione na placu budowy w Niemczech.
+
+Zadbaj o to, by każda wygenerowana scena była unikalna, dodając losowe kreatywne elementy (np. różne warunki oświetleniowe, kąty kamery, detale materiałowe, kolory).
 Zwróć TYLKO i wyłącznie gotowy, czysty prompt w języku angielskim (maksymalnie 3-4 zdania). Nie dodawaj cudzysłowów ani żadnych słów wstępnych.`
 
 	userPrompt := fmt.Sprintf("Nazwa usługi: %s\nKontekst: %s", serviceName, contextDesc)

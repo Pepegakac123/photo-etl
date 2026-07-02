@@ -186,6 +186,7 @@
                                 <button type="button" 
                                         hx-post="/services/{{ .Service.ID }}/prompt/enhance"
                                         hx-target="#custom_prompt"
+                                        hx-swap="outerHTML"
                                         hx-include="#custom_prompt"
                                         hx-indicator="#enhance-indicator"
                                         class="px-2 py-1 bg-[#161F30] hover:bg-[#1E2B44] border border-[#2B3B57] hover:border-indigo-500/50 text-[#A5B4FC] hover:text-white rounded text-[10px] font-bold transition flex items-center gap-1 active:scale-[0.98] outline-none select-none">
