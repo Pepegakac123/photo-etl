@@ -341,6 +341,13 @@ func (s *Server) handleManualMatch(w http.ResponseWriter, r *http.Request) {
 			%d
 		</span>
 	`, svc.Name, unmatchedCount)))
+
+	// Update the sidebar service count out-of-band
+	progress, err := s.getSingleServiceProgress(ctx, serviceID)
+	if err == nil {
+		progress.Oob = true
+		_ = s.tmpl.ExecuteTemplate(w, "sidebar_button", progress)
+	}
 }
 
 func (s *Server) handleWorkspace(w http.ResponseWriter, r *http.Request) {

@@ -2,12 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
-## [1.1.0] - 2026-07-02
+## [1.0.8] - 2026-07-02
 ### Added
 - **AI Prompt Enhancer**: Added an "Ulepsz prompt z AI (Zróżnicuj)" button next to the prompt customizer. It utilizes `gpt-4o-mini` with a temperature of 1.0 to expand Polish service descriptions into diverse, detailed English prompts for highly varied image generation.
 
 ### Fixed
-- **Seamless Manual Matching**: Updated the manual photo matching form on the "Zdjęcia Klienta" page to delete the matched card in-place and update the sidebar count out-of-band, showing a success toast and avoiding full page reloads.
+- **Seamless Manual Matching**: Updated the manual photo matching form on the "Zdjęcia Klienta" page to delete the matched card in-place and update both the unmatched badge count and the target service photo counter in the sidebar out-of-band, showing a success toast and avoiding full page reloads.
 - **API Resolution Value Correction**: Corrected the option value of the 0.5K resolution selection from `512px` to `512` to comply with the official Google Gemini API parameters.
 
 ## [1.0.7] - 2026-07-02
