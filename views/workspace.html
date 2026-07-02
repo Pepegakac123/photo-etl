@@ -253,6 +253,21 @@
         activeBtn.classList.remove('text-gray-400', 'hover:text-gray-200');
         activeBtn.classList.add('text-indigo-400', 'border-b-2', 'border-indigo-500');
     }
+
+    // Preserve scroll position for the project photos list during HTMX swaps
+    document.addEventListener('htmx:beforeRequest', function(evt) {
+        const list = document.getElementById('project-photos-list');
+        if (list) {
+            window.savedPhotosScrollTop = list.scrollTop;
+        }
+    });
+
+    document.addEventListener('htmx:afterOnLoad', function(evt) {
+        const list = document.getElementById('project-photos-list');
+        if (list && window.savedPhotosScrollTop !== undefined) {
+            list.scrollTop = window.savedPhotosScrollTop;
+        }
+    });
 </script>
 {{ end }}
 
@@ -286,8 +301,18 @@
         <span class="text-[10px] text-gray-400 font-bold font-sans">Wysyłanie plików...</span>
     </div>
 </form>
+{{ if gt .PendingCount 0 }}
+<button hx-post="/services/{{ .Service.ID }}/photos/reject-pending"
+        hx-target="#project-photos-container"
+        class="w-full mb-4 py-2 bg-rose-950/20 hover:bg-rose-900/30 border border-rose-500/20 hover:border-rose-500/40 text-rose-400 hover:text-rose-300 text-xs font-semibold rounded-lg transition active:scale-[0.98] flex items-center justify-center gap-1.5 shadow shrink-0">
+    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+    </svg>
+    <span>Odrzuć pozostałe oczekujące ({{ .PendingCount }})</span>
+</button>
+{{ end }}
 
-<div class="flex-1 overflow-y-auto space-y-4 pr-1">
+<div id="project-photos-list" class="flex-1 overflow-y-auto space-y-4 pr-1">
     {{ if not .Photos }}
     <div class="h-48 border border-dashed border-[#23314B] rounded-xl flex flex-col items-center justify-center text-center p-4">
         <p class="text-sm text-gray-500">Brak zdjęć przypisanych do tej usługi.</p>

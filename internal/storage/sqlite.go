@@ -436,5 +436,14 @@ func (d *DB) GetAllPhotoPaths(ctx context.Context) (map[string]bool, error) {
 	return paths, nil
 }
 
+// RejectPendingPhotos updates all pending photos for a service to 'rejected'.
+func (d *DB) RejectPendingPhotos(ctx context.Context, serviceID int64) (int64, error) {
+	res, err := d.db.ExecContext(ctx, "UPDATE photos SET status = 'rejected' WHERE service_id = ? AND status = 'pending'", serviceID)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
 
 

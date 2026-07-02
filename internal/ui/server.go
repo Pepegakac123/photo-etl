@@ -92,6 +92,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("POST /services/{id}/gallery/associate-folder", s.handleGalleryAssociateFolder)
 	s.mux.HandleFunc("POST /gallery/index", s.handleGalleryIndex)
 	s.mux.HandleFunc("POST /services/{id}/photos/upload", s.handlePhotosUpload)
+	s.mux.HandleFunc("POST /services/{id}/photos/reject-pending", s.handleRejectPendingPhotos)
 	s.mux.HandleFunc("POST /services/{id}/stock/search", s.handleStockSearch)
 	s.mux.HandleFunc("POST /services/{id}/generate", s.handleGenerateImage)
 	s.mux.HandleFunc("POST /photos/{id}/approve", s.handleApprovePhoto)
@@ -823,6 +824,27 @@ func (s *Server) handlePhotosUpload(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
 		w.Write([]byte(`<script>showToast("Nie udało się zapisać żadnego zdjęcia.", "error");</script>`))
 	}
+
+	s.handleWorkspaceUpdate(w, r, id)
+}
+
+func (s *Server) handleRejectPendingPhotos(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	idStr := r.PathValue("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid service ID", http.StatusBadRequest)
+		return
+	}
+
+	_, err = s.db.RejectPendingPhotos(ctx, id)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to reject pending photos: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html")
+	w.Write([]byte(`<script>showToast("Odrzucono wszystkie pozostałe zdjęcia oczekujące.", "success");</script>`))
 
 	s.handleWorkspaceUpdate(w, r, id)
 }

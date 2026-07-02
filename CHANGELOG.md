@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.3] - 2026-07-02
+### Added
+- **Scroll Position Preservation**: Implemented a client-side JavaScript scroll preserver that saves and restores the scroll location of the project photos list during HTMX swaps.
+- **Reject All Remaining Pending Photos**: Added a quick action button in the project photos sidebar that rejects all remaining pending images for the current service with a single click.
+
 ## [1.0.2] - 2026-07-02
 ### Added
 - **Manual Disk File Upload**: Added a visual upload dropzone in the project photos sidebar, allowing users to upload and assign multiple photos directly from their disk to any service.
