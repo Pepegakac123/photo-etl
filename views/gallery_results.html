@@ -30,9 +30,6 @@
                 {{ range .Photos }}
                 <div class="aspect-video relative group rounded-lg overflow-hidden border border-[#23314B] bg-black" data-photo-path="{{ . }}">
                     <img src="/local-media?path={{ urlEscape . }}" alt="Gallery Image" class="object-cover w-full h-full group-hover:scale-105 transition duration-200">
-                    <span class="absolute bottom-1 left-1 px-1.5 py-0.5 text-[9px] font-bold rounded bg-black/60 backdrop-blur-sm text-gray-300 border border-gray-500/20 z-10 pointer-events-none">
-                        {{ fileResolution . }}
-                    </span>
                     <button hx-post="/photos/add?service_id={{ $.ServiceID }}&path={{ urlEscape . }}&source=LocalGallery" 
                             hx-target="#project-photos-container"
                             onclick="this.closest('.relative').style.display='none';"
