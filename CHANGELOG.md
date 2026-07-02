@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.5] - 2026-07-02
+### Fixed
+- **Autocomplete Result Association Race**: Added a 100ms delay to `clearAutocomplete()` on suggestion click to prevent immediate DOM detachment from aborting the HTMX request, fixing the issue where selected folders would fail to load their photo list.
+
 ## [1.0.4] - 2026-07-02
 ### Added
 - **AI Image Generation Resolution Options**: Added a dropdown select in the AI generation tab to choose between 512px (0.5K), 1K, 2K, and 4K output sizes.

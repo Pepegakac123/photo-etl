@@ -639,7 +639,7 @@ func (s *Server) handleGalleryAutocomplete(w http.ResponseWriter, r *http.Reques
 					hx-vals='{"folder_id": "%d"}'
 					hx-target="#gallery-results"
 					hx-indicator="#manual-gallery-indicator"
-					onclick="clearAutocomplete()"
+					onclick="setTimeout(clearAutocomplete, 100)"
 					class="w-full text-left px-4 py-2.5 hover:bg-indigo-600/20 text-xs text-gray-200 hover:text-white transition flex items-center justify-between group active:scale-[0.99] outline-none">
 				<span class="font-medium truncate pr-2">%s</span>
 				<span class="text-[10px] text-gray-500 group-hover:text-indigo-400 font-mono shrink-0">%s</span>

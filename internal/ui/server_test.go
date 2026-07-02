@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"fmt"
 	"github.com/Pepegakac123/photo-etl/internal/config"
 	"github.com/Pepegakac123/photo-etl/internal/storage"
 )
@@ -110,5 +111,68 @@ func TestWebServer(t *testing.T) {
 
 	if !strings.Contains(rr.Body.String(), "hx-swap-oob") {
 		t.Errorf("expected response to include OOB counter updates, got: %s", rr.Body.String())
+	}
+}
+
+func TestAssociateFolder(t *testing.T) {
+	tmpDir := t.TempDir()
+	clientDir := filepath.Join(tmpDir, "test-client")
+	_ = os.Mkdir(clientDir, 0755)
+
+	db, err := storage.InitDB(":memory:")
+	if err != nil {
+		t.Fatalf("failed to init db: %v", err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+	_, err = db.CreateService(ctx, "Abbrucharbeiten")
+	if err != nil {
+		t.Fatalf("failed to create service: %v", err)
+	}
+
+	// Create a mock gallery folder
+	mockFolderPath := filepath.Join(tmpDir, "mock-gallery-folder")
+	_ = os.MkdirAll(mockFolderPath, 0755)
+	// Write a mock image file
+	_ = os.WriteFile(filepath.Join(mockFolderPath, "image1.jpg"), []byte("fake"), 0644)
+
+	folderID, err := db.CreateGalleryFolder(ctx, "mock-gallery-folder", mockFolderPath, "mock-de", "mock-pl")
+	if err != nil {
+		t.Fatalf("failed to create gallery folder: %v", err)
+	}
+
+	cfg := &config.Config{
+		TargetPhotosPerService: 5,
+		LocalGalleryPath:       tmpDir,
+		ExportDir:              filepath.Join(tmpDir, "export"),
+	}
+
+	srv := NewServer(db, cfg, "", nil, nil, nil, clientDir)
+	wd, _ := os.Getwd()
+	srv.templatesDir = filepath.Join(wd, "..", "..", "views")
+	_ = srv.ParseTemplates()
+
+	// Test POST /services/1/gallery/associate-folder with folder_id in form urlencoded body
+	req, _ := http.NewRequest("POST", "/services/1/gallery/associate-folder", strings.NewReader(fmt.Sprintf("folder_id=%d", folderID)))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	// Set path value since we bypass mux routing
+	req.SetPathValue("id", "1")
+
+	rr := httptest.NewRecorder()
+	srv.ServeHTTP(rr, req)
+
+	t.Logf("Response code: %d", rr.Code)
+	t.Logf("Response body: %s", rr.Body.String())
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d. Body: %s", rr.Code, rr.Body.String())
+	}
+
+	if !strings.Contains(rr.Body.String(), "mock-gallery-folder") {
+		t.Errorf("expected response to contain folder name 'mock-gallery-folder', got: %s", rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "image1.jpg") {
+		t.Errorf("expected response to contain image filename 'image1.jpg', got: %s", rr.Body.String())
 	}
 }
