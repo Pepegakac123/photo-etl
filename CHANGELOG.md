@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [1.0.8] - 2026-07-02
 ### Added
-- **AI Prompt Enhancer**: Added an "Ulepsz prompt z AI (Zróżnicuj)" button next to the prompt customizer. It utilizes `gpt-4o-mini` with a temperature of 1.0 to expand Polish service descriptions into diverse, detailed English prompts for highly varied image generation.
+- **AI Prompt Enhancer**: Added an "Ulepsz prompt z AI (Zróżnicuj)" button next to the prompt customizer. It utilizes `gemini-2.5-flash-lite` via the Google Gemini Interactions API (using the Nano Banana Key) with a temperature of 1.0 to expand Polish service descriptions into diverse, detailed English prompts for highly varied image generation, completely avoiding human faces and full bodies.
 
 ### Fixed
 - **Minimum Photos Limit on Export**: Changed the target photo count from a hard maximum limit on adding photos to a minimum requirement enforced before starting an export. Users can now add more than the minimum photo limit.
