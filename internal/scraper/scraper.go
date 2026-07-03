@@ -66,11 +66,20 @@ func ScrapePhotos(ctx context.Context, targetURL string, outputDir string, fbCUs
 	
 	// Inject Facebook login cookies if provided
 	if fbCUser != "" && fbXS != "" && strings.Contains(targetURL, "facebook.com") {
+		cUserClean, err := url.QueryUnescape(fbCUser)
+		if err != nil {
+			cUserClean = fbCUser
+		}
+		xsClean, err := url.QueryUnescape(fbXS)
+		if err != nil {
+			xsClean = fbXS
+		}
+
 		sendLog("[SYSTEM] Logowanie do Facebooka przy użyciu podanych ciasteczek sesji...")
-		err := page.SetCookies([]*proto.NetworkCookieParam{
+		err = page.SetCookies([]*proto.NetworkCookieParam{
 			{
 				Name:     "c_user",
-				Value:    fbCUser,
+				Value:    cUserClean,
 				Domain:   ".facebook.com",
 				Path:     "/",
 				HTTPOnly: true,
@@ -78,7 +87,7 @@ func ScrapePhotos(ctx context.Context, targetURL string, outputDir string, fbCUs
 			},
 			{
 				Name:     "xs",
-				Value:    fbXS,
+				Value:    xsClean,
 				Domain:   ".facebook.com",
 				Path:     "/",
 				HTTPOnly: true,
