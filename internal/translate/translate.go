@@ -11,9 +11,14 @@ import (
 var baseURL = "https://translate.googleapis.com/translate_a/single"
 
 // Translate translates a text using the free Google Translate single endpoint.
+// It checks the static dictionary first, and falls back to the API.
 func Translate(ctx context.Context, text, fromLang, toLang string) (string, error) {
 	if text == "" {
 		return "", nil
+	}
+
+	if val, ok := DictionaryTranslate(text, toLang); ok {
+		return val, nil
 	}
 
 	apiURL := fmt.Sprintf("%s?client=gtx&sl=%s&tl=%s&dt=t&q=%s",
