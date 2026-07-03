@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -13,6 +12,10 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/go-rod/rod"
+	"github.com/go-rod/rod/lib/launcher"
+	"github.com/go-rod/stealth"
 )
 
 // FindBrowserPath searches for chromium or google-chrome on the system.
@@ -40,23 +43,99 @@ func ScrapePhotos(ctx context.Context, targetURL string, outputDir string, sendL
 	if err != nil {
 		return err
 	}
-	sendLog(fmt.Sprintf("[SYSTEM] Znaleziono przeglądarkę: %s", filepath.Base(browserPath)))
+	sendLog(fmt.Sprintf("[SYSTEM] Uruchamianie Chromium (%s) w trybie headless i stealth...", filepath.Base(browserPath)))
 
 	// 2. Ensure output directory exists
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
-	// 3. Execute headless Chromium to render the page
-	sendLog("[SYSTEM] Wczytywanie i renderowanie strony przez Chromium (headless)...")
-	cmd := exec.CommandContext(ctx, browserPath, "--headless", "--disable-gpu", "--no-sandbox", "--dump-dom", targetURL)
-	domBytes, err := cmd.Output()
+	// 3. Launch browser using launcher and stealth
+	l := launcher.New().Bin(browserPath).Headless(true).NoSandbox(true)
+	controlURL, err := l.Launch()
 	if err != nil {
-		return fmt.Errorf("błąd podczas renderowania strony: %w (upewnij się, czy Chromium działa prawidłowo)", err)
+		return fmt.Errorf("nie udało się uruchomić przeglądarki: %w", err)
+	}
+	
+	browser := rod.New().ControlURL(controlURL).MustConnect()
+	defer browser.MustClose()
+
+	sendLog("[SYSTEM] Wczytywanie i renderowanie strony...")
+	page := stealth.MustPage(browser)
+	
+	if err := page.Navigate(targetURL); err != nil {
+		return fmt.Errorf("błąd wczytywania strony: %w", err)
+	}
+	page.MustWaitLoad()
+
+	// Wait 3 seconds for dynamic overlays (cookie banners, modals) to appear
+	time.Sleep(3 * time.Second)
+
+	// Helper to bypass Facebook cookie banner and login modal
+	bypassOverlays := func() {
+		_, _ = page.Eval(`() => {
+			// 1. Remove cookie consent banner if present
+			const cookieSpan = Array.from(document.querySelectorAll('span')).find(el => el.textContent.includes("Zezwól na wszystkie pliki cookie") || el.textContent.includes("Allow all"));
+			if (cookieSpan) {
+				let parent = cookieSpan.parentElement;
+				while (parent && parent !== document.body) {
+					const role = parent.getAttribute('role');
+					const style = window.getComputedStyle(parent);
+					if (role === 'dialog' || parent.tagName === 'FORM' || style.position === 'fixed') {
+						parent.remove();
+						break;
+					}
+					parent = parent.parentElement;
+				}
+			}
+
+			// 2. Click close button on login modal
+			const closeBtn = Array.from(document.querySelectorAll('[aria-label]')).find(el => {
+				const label = el.getAttribute('aria-label').toLowerCase();
+				return label.includes("zamknij") || label.includes("close") || label.includes("luk") || label.includes("dismiss");
+			});
+			if (closeBtn) {
+				const events = ['mousedown', 'mouseup', 'click'];
+				events.forEach(name => {
+					const ev = new MouseEvent(name, { bubbles: true, cancelable: true, view: window });
+					closeBtn.dispatchEvent(ev);
+				});
+			}
+
+			// 3. Restore scrollability
+			document.body.style.setProperty("overflow", "auto", "important");
+			document.documentElement.style.setProperty("overflow", "auto", "important");
+			document.body.style.setProperty("position", "relative", "important");
+		}`)
 	}
 
-	dom := string(domBytes)
-	sendLog("[SYSTEM] Strona wczytana pomyślnie. Rozpoczynanie parsowania...")
+	// First bypass
+	bypassOverlays()
+	time.Sleep(1 * time.Second)
+
+	sendLog("[SYSTEM] Przewijanie strony w celu załadowania obrazów (lazy-loading)...")
+	// Scroll down 15 times to trigger dynamic loading of images
+	for i := 0; i < 15; i++ {
+		bypassOverlays()
+		
+		// Scroll window and any scrollable containers
+		_, _ = page.Eval(`() => {
+			const amt = 350;
+			window.scrollBy(0, amt);
+			document.querySelectorAll('div').forEach(el => {
+				if (el.scrollHeight > el.clientHeight) {
+					const style = window.getComputedStyle(el);
+					if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
+						el.scrollTop += amt;
+					}
+				}
+			});
+		}`)
+		time.Sleep(600 * time.Millisecond)
+	}
+
+	sendLog("[SYSTEM] Parsowanie struktury strony i ekstrakcja zdjęć...")
+	dom := page.MustHTML()
 
 	var imageUrls []string
 	isFB := strings.Contains(targetURL, "facebook.com")
@@ -90,7 +169,7 @@ func ScrapePhotos(ctx context.Context, targetURL string, outputDir string, sendL
 				}
 			}
 		}
-		sendLog(fmt.Sprintf("[OK] Znaleziono %d potencjalnych zdjęć z Facebooka.", len(imageUrls)))
+		sendLog(fmt.Sprintf("[OK] Znaleziono %d zdjęć na profilu Facebook.", len(imageUrls)))
 	} else {
 		// General website scraping
 		base, err := url.Parse(targetURL)
@@ -158,19 +237,18 @@ func ScrapePhotos(ctx context.Context, targetURL string, outputDir string, sendL
 		return fmt.Errorf("nie znaleziono żadnych zdjęć na podanej stronie")
 	}
 
-	// 4. Download images with rate limiting/concurrency
+	// 4. Download images
 	client := &http.Client{
 		Timeout: 20 * time.Second,
 	}
 
 	downloadCount := 0
 	for i, imgURL := range imageUrls {
-		// Skip tracker pixels, icons, and small social assets
 		imgURLClean := strings.ToLower(imgURL)
 		if !isFB {
 			if strings.Contains(imgURLClean, "/logo") || strings.Contains(imgURLClean, "/icon") || 
-			   strings.Contains(imgURLClean, "avatar") || strings.Contains(imgURLClean, "sprite") ||
-			   strings.Contains(imgURLClean, "analytics") || strings.Contains(imgURLClean, "pixel") {
+				strings.Contains(imgURLClean, "avatar") || strings.Contains(imgURLClean, "sprite") ||
+				strings.Contains(imgURLClean, "analytics") || strings.Contains(imgURLClean, "pixel") {
 				continue
 			}
 		}
@@ -182,7 +260,6 @@ func ScrapePhotos(ctx context.Context, targetURL string, outputDir string, sendL
 			sendLog(fmt.Sprintf("  [ERR] Błąd zapytania dla zdjęcia %d: %v", i+1, err))
 			continue
 		}
-		// Add browser headers
 		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 		req.Header.Set("Accept", "image/avif,image/webp,image/apng,image/*,*/*;q=0.8")
 
@@ -198,19 +275,16 @@ func ScrapePhotos(ctx context.Context, targetURL string, outputDir string, sendL
 			continue
 		}
 
-		// Read and verify size (skip tiny images < 10KB)
 		data, err := io.ReadAll(resp.Body)
 		if err != nil {
 			sendLog(fmt.Sprintf("  [ERR] Błąd zapisu danych dla zdjęcia %d: %v", i+1, err))
 			continue
 		}
 
-		if len(data) < 10240 { // 10 KB
-			// Skip tiny assets
+		if len(data) < 10240 { // skip tiny images < 10KB
 			continue
 		}
 
-		// Determine file extension
 		ext := ".jpg"
 		if strings.Contains(resp.Header.Get("Content-Type"), "png") {
 			ext = ".png"
@@ -218,7 +292,6 @@ func ScrapePhotos(ctx context.Context, targetURL string, outputDir string, sendL
 			ext = ".webp"
 		}
 
-		// Create unique filename
 		var filename string
 		if isFB {
 			filename = fmt.Sprintf("parsed_fb_%d_%d%s", time.Now().Unix(), downloadCount, ext)
@@ -233,7 +306,6 @@ func ScrapePhotos(ctx context.Context, targetURL string, outputDir string, sendL
 		}
 
 		downloadCount++
-		log.Printf("Downloaded %s successfully to %s", imgURL, filePath)
 	}
 
 	sendLog(fmt.Sprintf("[OK] Pobieranie zakończone! Pomyślnie pobrano %d zdjęć do katalogu klienta.", downloadCount))
@@ -244,7 +316,11 @@ func ScrapePhotos(ctx context.Context, targetURL string, outputDir string, sendL
 func CleanFbDom(workdir string) {
 	_ = os.Remove(filepath.Join(workdir, "fb_dom.html"))
 	_ = os.Remove(filepath.Join(workdir, "fb_response.html"))
-	_ = os.Remove(filepath.Join(workdir, "thumb.jpg"))
-	_ = os.Remove(filepath.Join(workdir, "full.jpg"))
-	_ = os.Remove(filepath.Join(workdir, "full_correct.jpg"))
+	_ = os.Remove(filepath.Join(workdir, "fb_initial.png"))
+	_ = os.Remove(filepath.Join(workdir, "fb_after_cookie.png"))
+	_ = os.Remove(filepath.Join(workdir, "fb_scrolled.png"))
+	_ = os.Remove(filepath.Join(workdir, "fb_album_after_cookie.png"))
+	_ = os.Remove(filepath.Join(workdir, "fb_album_scrolled.png"))
+	_ = os.Remove(filepath.Join(workdir, "fb_elements.txt"))
+	_ = os.Remove(filepath.Join(workdir, "mbasic_fb.html"))
 }

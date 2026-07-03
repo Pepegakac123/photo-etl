@@ -13,3 +13,12 @@ test_client/
 export/
 config.yaml
 .temp/
+
+# Facebook scraping debug files
+fb_*.png
+fb_*.html
+fb_*.txt
+mbasic_fb.html
+fb_dom.html
+fb_response.html
+
