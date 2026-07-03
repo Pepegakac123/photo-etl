@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.2] - 2026-07-03
+### Added
+- **Facebook Cookie & Login Consent Bypass**: Integrated frame-aware, element-specific cookie banner traversal and automated close-button clicking (`aria-label` based) to dynamically bypass cookie consent and login modals without breaking page layouts.
+- **Dynamic Scroll Container Scan**: Updated the photo scraper scroll loop to dynamically locate and scroll local overflow containers (in addition to the main window), triggering lazy-loading of photo grids on platforms like Facebook and general web clients.
+- **Stealth Evasion Integration**: Installed and configured `go-rod/stealth` to bypass browser automation checks and prevent headless detection blocks.
+- **Cleaned Up Workspace Logs**: Added automatic cleanup of FB scraping trace screenshots and HTML mock outputs from the git repository.
+
 ## [1.1.1] - 2026-07-03
 ### Fixed
 - **Embedded Templates Fallback**: Committed and pushed the template embedding code (`views/views.go` and `internal/ui/server.go` fallback logic) to ensure the binary is portable and runs correctly when executed globally from outside the project directory.
