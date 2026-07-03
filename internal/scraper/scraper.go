@@ -196,17 +196,15 @@ func ScrapePhotos(ctx context.Context, targetURL string, outputDir string, fbCUs
 			}
 		}
 		
-		// Fallback: search for direct fbcdn image links in case viewer_image JSON is not present
-		if len(imageUrls) == 0 {
-			reFB := regexp.MustCompile(`https://scontent[^"'\s]*fbcdn.net/[^"'\s]*`)
-			matchesFB := reFB.FindAllString(dom, -1)
-			for _, uri := range matchesFB {
-				uri = strings.ReplaceAll(uri, "&amp;", "&")
-				// Keep unique
-				if !seen[uri] {
-					seen[uri] = true
-					imageUrls = append(imageUrls, uri)
-				}
+		// Extract direct fbcdn image links in addition to viewer_image
+		reFB := regexp.MustCompile(`https://scontent[^"'\s]*fbcdn.net/[^"'\s]*`)
+		matchesFB := reFB.FindAllString(dom, -1)
+		for _, uri := range matchesFB {
+			uri = strings.ReplaceAll(uri, "&amp;", "&")
+			// Keep unique
+			if !seen[uri] {
+				seen[uri] = true
+				imageUrls = append(imageUrls, uri)
 			}
 		}
 		sendLog(fmt.Sprintf("[OK] Znaleziono %d zdjęć na profilu Facebook.", len(imageUrls)))
