@@ -182,33 +182,87 @@ func ScrapePhotos(ctx context.Context, targetURL string, outputDir string, fbCUs
 	isFB := strings.Contains(targetURL, "facebook.com")
 
 	if isFB {
-		// Try to parse full-resolution images from JSON state ("viewer_image":{"uri":"..."})
-		re := regexp.MustCompile(`"viewer_image"\s*:\s*\{\s*"uri"\s*:\s*"([^"]+)"`)
-		matches := re.FindAllStringSubmatch(dom, -1)
-		
 		seen := make(map[string]bool)
-		for _, m := range matches {
-			uri := m[1]
-			// Unescape JSON string
-			uri = strings.ReplaceAll(uri, `\/`, "/")
-			if !seen[uri] {
-				seen[uri] = true
-				imageUrls = append(imageUrls, uri)
-			}
-		}
 		
-		// Extract direct fbcdn image links in addition to viewer_image
-		reFB := regexp.MustCompile(`https://scontent[^"'\s]*fbcdn.net/[^"'\s]*`)
-		matchesFB := reFB.FindAllString(dom, -1)
-		for _, uri := range matchesFB {
-			uri = strings.ReplaceAll(uri, "&amp;", "&")
-			// Keep unique
-			if !seen[uri] {
-				seen[uri] = true
-				imageUrls = append(imageUrls, uri)
+		extractImagesFromDom := func(htmlContent string) {
+			// Extract viewer_image JSON
+			reViewer := regexp.MustCompile(`"viewer_image"\s*:\s*\{\s*"uri"\s*:\s*"([^"]+)"`)
+			matchesViewer := reViewer.FindAllStringSubmatch(htmlContent, -1)
+			for _, m := range matchesViewer {
+				uri := m[1]
+				uri = strings.ReplaceAll(uri, `\/`, "/")
+				if !seen[uri] {
+					seen[uri] = true
+					imageUrls = append(imageUrls, uri)
+				}
+			}
+			
+			// Extract direct fbcdn links
+			reFB := regexp.MustCompile(`https://scontent[^"'\s]*fbcdn.net/[^"'\s]*`)
+			matchesFB := reFB.FindAllString(htmlContent, -1)
+			for _, uri := range matchesFB {
+				uri = strings.ReplaceAll(uri, "&amp;", "&")
+				if !seen[uri] {
+					seen[uri] = true
+					imageUrls = append(imageUrls, uri)
+				}
 			}
 		}
-		sendLog(fmt.Sprintf("[OK] Znaleziono %d zdjęć na profilu Facebook.", len(imageUrls)))
+
+		// 1. Extract from the initial page
+		extractImagesFromDom(dom)
+
+		// 2. Automatically find and crawl album links if we are on a general photos/profile page
+		if strings.Contains(targetURL, "sk=photos") || strings.Contains(targetURL, "/profile.php") {
+			reAlbum := regexp.MustCompile(`/media/set/\?set=a\.(\d+)`)
+			albumMatches := reAlbum.FindAllStringSubmatch(dom, -1)
+			
+			var albumURLs []string
+			seenAlbums := make(map[string]bool)
+			for _, m := range albumMatches {
+				albumID := m[1]
+				if !seenAlbums[albumID] {
+					seenAlbums[albumID] = true
+					albumURLs = append(albumURLs, fmt.Sprintf("https://www.facebook.com/media/set/?set=a.%s&type=3&locale=pl_PL", albumID))
+				}
+			}
+			
+			if len(albumURLs) > 0 {
+				sendLog(fmt.Sprintf("[SYSTEM] Wykryto %d albumów na profilu. Rozpoczynanie automatycznego skanowania...", len(albumURLs)))
+				for idx, albumURL := range albumURLs {
+					sendLog(fmt.Sprintf("  Skanowanie albumu %d/%d...", idx+1, len(albumURLs)))
+					
+					if err := page.Navigate(albumURL); err == nil {
+						page.MustWaitLoad()
+						time.Sleep(3 * time.Second)
+						bypassOverlays()
+						
+						// Scroll 8 times per album to dynamically load photos
+						for s := 0; s < 8; s++ {
+							bypassOverlays()
+							_, _ = page.Eval(`() => {
+								const amt = 400;
+								window.scrollBy(0, amt);
+								document.querySelectorAll('div').forEach(el => {
+									if (el.scrollHeight > el.clientHeight) {
+										const style = window.getComputedStyle(el);
+										if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
+											el.scrollTop += amt;
+										}
+									}
+								});
+							}`)
+							time.Sleep(1200 * time.Millisecond)
+						}
+						
+						albumDom := page.MustHTML()
+						extractImagesFromDom(albumDom)
+					}
+				}
+			}
+		}
+
+		sendLog(fmt.Sprintf("[OK] Znaleziono łącznie %d zdjęć na profilu Facebook i w albumach.", len(imageUrls)))
 	} else {
 		// General website scraping
 		base, err := url.Parse(targetURL)
