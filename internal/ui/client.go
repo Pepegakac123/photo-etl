@@ -347,6 +347,9 @@ func (s *Server) handleScrapePhotosStream(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	fbCUser := r.URL.Query().Get("fb_c_user")
+	fbXS := r.URL.Query().Get("fb_xs")
+
 	if s.clientDir == "" {
 		sendLog("[ERR] Brak otwartego katalogu roboczego klienta.")
 		send("complete", "error")
@@ -380,7 +383,7 @@ func (s *Server) handleScrapePhotosStream(w http.ResponseWriter, r *http.Request
 	}
 
 	ctx := r.Context()
-	err = scraper.ScrapePhotos(ctx, targetURL, screenshotsFolder, sendLog)
+	err = scraper.ScrapePhotos(ctx, targetURL, screenshotsFolder, fbCUser, fbXS, sendLog)
 	if err != nil {
 		sendLog(fmt.Sprintf("[ERR] %v", err))
 		send("complete", "error")

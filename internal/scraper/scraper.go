@@ -15,6 +15,7 @@ import (
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/launcher"
+	"github.com/go-rod/rod/lib/proto"
 	"github.com/go-rod/stealth"
 )
 
@@ -31,7 +32,7 @@ func FindBrowserPath() (string, error) {
 
 // ScrapePhotos scrapes all high-quality photos from Facebook or a general website.
 // It downloads them to the specified output directory and reports progress via sendLog.
-func ScrapePhotos(ctx context.Context, targetURL string, outputDir string, sendLog func(string)) error {
+func ScrapePhotos(ctx context.Context, targetURL string, outputDir string, fbCUser, fbXS string, sendLog func(string)) error {
 	if targetURL == "" {
 		return fmt.Errorf("pusty adres URL")
 	}
@@ -63,6 +64,34 @@ func ScrapePhotos(ctx context.Context, targetURL string, outputDir string, sendL
 	sendLog("[SYSTEM] Wczytywanie i renderowanie strony...")
 	page := stealth.MustPage(browser)
 	
+	// Inject Facebook login cookies if provided
+	if fbCUser != "" && fbXS != "" && strings.Contains(targetURL, "facebook.com") {
+		sendLog("[SYSTEM] Logowanie do Facebooka przy użyciu podanych ciasteczek sesji...")
+		err := page.SetCookies([]*proto.NetworkCookieParam{
+			{
+				Name:     "c_user",
+				Value:    fbCUser,
+				Domain:   ".facebook.com",
+				Path:     "/",
+				HTTPOnly: true,
+				Secure:   true,
+			},
+			{
+				Name:     "xs",
+				Value:    fbXS,
+				Domain:   ".facebook.com",
+				Path:     "/",
+				HTTPOnly: true,
+				Secure:   true,
+			},
+		})
+		if err != nil {
+			sendLog(fmt.Sprintf("  [WARN] Błąd ustawiania ciasteczek logowania: %v", err))
+		} else {
+			sendLog("  [OK] Ciasteczka sesji zaimportowane pomyślnie.")
+		}
+	}
+	
 	if err := page.Navigate(targetURL); err != nil {
 		return fmt.Errorf("błąd wczytywania strony: %w", err)
 	}
@@ -89,17 +118,19 @@ func ScrapePhotos(ctx context.Context, targetURL string, outputDir string, sendL
 				}
 			}
 
-			// 2. Click close button on login modal
-			const closeBtn = Array.from(document.querySelectorAll('[aria-label]')).find(el => {
-				const label = el.getAttribute('aria-label').toLowerCase();
-				return label.includes("zamknij") || label.includes("close") || label.includes("luk") || label.includes("dismiss");
-			});
-			if (closeBtn) {
-				const events = ['mousedown', 'mouseup', 'click'];
-				events.forEach(name => {
-					const ev = new MouseEvent(name, { bubbles: true, cancelable: true, view: window });
-					closeBtn.dispatchEvent(ev);
-				});
+			// 2. Remove login modal (DO NOT click close button to avoid redirect, just delete from DOM)
+			const loginSpan = Array.from(document.querySelectorAll('span')).find(el => el.textContent.includes("Wyświetl więcej na Facebooku") || el.textContent.includes("See more on Facebook"));
+			if (loginSpan) {
+				let parent = loginSpan.parentElement;
+				while (parent && parent !== document.body) {
+					const role = parent.getAttribute('role');
+					const style = window.getComputedStyle(parent);
+					if (role === 'dialog' || style.position === 'fixed') {
+						parent.remove();
+						break;
+					}
+					parent = parent.parentElement;
+				}
 			}
 
 			// 3. Restore scrollability
