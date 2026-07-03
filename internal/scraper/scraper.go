@@ -37,6 +37,34 @@ func ScrapePhotos(ctx context.Context, targetURL string, outputDir string, fbCUs
 		return fmt.Errorf("pusty adres URL")
 	}
 
+	// Automatically rewrite Facebook URLs to target the albums tab to find system albums
+	if strings.Contains(targetURL, "facebook.com") {
+		if strings.Contains(targetURL, "profile.php") {
+			if !strings.Contains(targetURL, "sk=photos_albums") {
+				u, err := url.Parse(targetURL)
+				if err == nil {
+					q := u.Query()
+					q.Set("sk", "photos_albums")
+					u.RawQuery = q.Encode()
+					targetURL = u.String()
+				}
+			}
+		} else {
+			// Vanity format URL like facebook.com/username
+			u, err := url.Parse(targetURL)
+			if err == nil {
+				pathParts := strings.Split(strings.Trim(u.Path, "/"), "/")
+				if len(pathParts) > 0 {
+					username := pathParts[0]
+					if username != "profile.php" && username != "media" && username != "photo.php" {
+						u.Path = fmt.Sprintf("/%s/photos_albums", username)
+						targetURL = u.String()
+					}
+				}
+			}
+		}
+	}
+
 	sendLog(fmt.Sprintf("[SYSTEM] Inicjalizacja parsera dla URL: %s", targetURL))
 	
 	// 1. Check for Chromium
@@ -153,33 +181,42 @@ func ScrapePhotos(ctx context.Context, targetURL string, outputDir string, fbCUs
 	bypassOverlays()
 	time.Sleep(1 * time.Second)
 
-	sendLog("[SYSTEM] Przewijanie strony w celu załadowania obrazów (lazy-loading)...")
-	// Scroll down 25 times to trigger dynamic loading of images
-	for i := 0; i < 25; i++ {
-		sendLog(fmt.Sprintf("  Przewijanie strony (%d/25)...", i+1))
-		bypassOverlays()
-		
-		// Scroll window and any scrollable containers
-		_, _ = page.Eval(`() => {
-			const amt = 400;
-			window.scrollBy(0, amt);
-			document.querySelectorAll('div').forEach(el => {
-				if (el.scrollHeight > el.clientHeight) {
-					const style = window.getComputedStyle(el);
-					if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
-						el.scrollTop += amt;
+	isFB := strings.Contains(targetURL, "facebook.com")
+	needScroll := true
+	if isFB && (strings.Contains(targetURL, "sk=photos_albums") || !strings.Contains(targetURL, "/media/set/")) {
+		needScroll = false
+	}
+
+	if needScroll {
+		sendLog("[SYSTEM] Przewijanie strony w celu załadowania obrazów (lazy-loading)...")
+		// Scroll down 25 times to trigger dynamic loading of images
+		for i := 0; i < 25; i++ {
+			sendLog(fmt.Sprintf("  Przewijanie strony (%d/25)...", i+1))
+			bypassOverlays()
+			
+			// Scroll window and any scrollable containers
+			_, _ = page.Eval(`() => {
+				const amt = 400;
+				window.scrollBy(0, amt);
+				document.querySelectorAll('div').forEach(el => {
+					if (el.scrollHeight > el.clientHeight) {
+						const style = window.getComputedStyle(el);
+						if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
+							el.scrollTop += amt;
+						}
 					}
-				}
-			});
-		}`)
-		time.Sleep(1500 * time.Millisecond)
+				});
+			}`)
+			time.Sleep(1500 * time.Millisecond)
+		}
+	} else {
+		sendLog("[SYSTEM] Profil Facebook: Pomijanie wstępnego scrollowania głównej listy albumów.")
 	}
 
 	sendLog("[SYSTEM] Parsowanie struktury strony i ekstrakcja zdjęć...")
 	dom := page.MustHTML()
 
 	var imageUrls []string
-	isFB := strings.Contains(targetURL, "facebook.com")
 
 	if isFB {
 		seen := make(map[string]bool)
