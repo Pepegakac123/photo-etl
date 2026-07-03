@@ -12,9 +12,18 @@
                 Lista zdjęć z WhatsAppa / zrzutów ekranu, które nie zostały przypisane do żadnej usługi lub zostały odrzucone we wszystkich powiązanych usługach.
             </p>
         </div>
-        <span class="px-3 py-1 bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-extrabold rounded-full font-mono">
-            {{ len .Photos }} zdjęć
-        </span>
+        <div class="flex items-center gap-3">
+            <button onclick="openScrapeModal()" 
+                    class="px-4 py-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-xs font-bold rounded-xl shadow transition duration-150 active:scale-[0.98] flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                </svg>
+                <span>Pobierz ze strony / FB</span>
+            </button>
+            <span class="px-3 py-1 bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-extrabold rounded-full font-mono">
+                {{ len .Photos }} zdjęć
+            </span>
+        </div>
     </div>
 
     <!-- Photos Grid -->
@@ -96,3 +105,148 @@
     </div>
 </div>
 {{ end }}
+
+<!-- Scrape Modal -->
+<div id="scrape-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm hidden transition-all duration-300 animate-fadeIn">
+    <div class="glass border border-[#23314B] rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl relative flex flex-col glow">
+        
+        <!-- Header -->
+        <div class="flex items-center justify-between border-b border-[#23314B] pb-3 shrink-0">
+            <h3 id="scrape-modal-title" class="text-sm font-bold text-gray-100 uppercase tracking-wider flex items-center gap-2">
+                <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                </svg>
+                Pobieranie zdjęć z Facebooka / WWW
+            </h3>
+            <button id="scrape-modal-close" onclick="closeScrapeModal()" class="text-gray-400 hover:text-white transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Input State -->
+        <div id="scrape-input-container" class="space-y-4">
+            <p class="text-xs text-gray-400 leading-relaxed">
+                Podaj adres URL do profilu/zdjęć na Facebooku lub galerii na stronie WWW klienta. Program wyrenderuje stronę za pomocą Chromium, pobierze zdjęcia bezpośrednio w najwyższej rozdzielczości i zapisze w katalogu klienta.
+            </p>
+            <div class="space-y-1.5">
+                <label for="scrape_url" class="text-[10px] font-bold text-gray-400 uppercase tracking-wider font-sans">Adres URL strony lub Facebooka</label>
+                <input type="url" id="scrape_url" placeholder="np. https://www.facebook.com/.../photos" required
+                       class="w-full bg-[#0E1524] border border-[#23314B] rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 transition font-sans">
+            </div>
+            <div class="flex justify-end gap-3 pt-2">
+                <button type="button" onclick="closeScrapeModal()" class="px-4 py-2 border border-[#23314B] hover:bg-white/5 text-gray-400 hover:text-white text-xs font-semibold rounded-lg transition duration-200">
+                    Anuluj
+                </button>
+                <button type="button" onclick="startScraping()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg transition duration-200 shadow">
+                    Rozpocznij pobieranie
+                </button>
+            </div>
+        </div>
+
+        <!-- Progress State (Console) -->
+        <div id="scrape-progress-container" class="space-y-4 hidden flex-1 flex flex-col min-h-0">
+            <div class="flex items-center justify-between text-xs">
+                <span id="scrape-status-text" class="text-indigo-400 font-semibold animate-pulse font-sans">Łączenie ze strumieniem...</span>
+            </div>
+
+            <!-- Console Log Output -->
+            <div id="scrape-console" class="flex-1 min-h-[200px] max-h-[280px] bg-black/40 border border-[#23314B] rounded-xl p-4 font-mono text-[11px] text-gray-300 overflow-y-auto space-y-1 select-text">
+                <div class="text-indigo-400 font-bold">[SYSTEM] Inicjalizacja strumienia pobierania...</div>
+            </div>
+
+            <!-- Action buttons after completion -->
+            <div id="scrape-actions" class="flex justify-end pt-2 hidden">
+                <button type="button" onclick="reloadScrapedPhotos()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg transition duration-200 shadow">
+                    Zamknij i Pokaż Zdjęcia
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let scrapeEventSource = null;
+
+    window.openScrapeModal = function() {
+        document.getElementById('scrape-modal').classList.remove('hidden');
+        document.getElementById('scrape-input-container').classList.remove('hidden');
+        document.getElementById('scrape-progress-container').classList.add('hidden');
+        document.getElementById('scrape-actions').classList.add('hidden');
+        document.getElementById('scrape_url').value = '';
+        document.getElementById('scrape-console').innerHTML = '<div class="text-indigo-400 font-bold">[SYSTEM] Inicjalizacja strumienia pobierania...</div>';
+    };
+
+    window.closeScrapeModal = function() {
+        if (scrapeEventSource) {
+            scrapeEventSource.close();
+            scrapeEventSource = null;
+        }
+        document.getElementById('scrape-modal').classList.add('hidden');
+    };
+
+    window.startScraping = function() {
+        const urlInput = document.getElementById('scrape_url');
+        const urlValue = urlInput.value.trim();
+        if (!urlValue) {
+            showToast("Podaj prawidłowy adres URL.", "error");
+            return;
+        }
+
+        // Switch to progress view
+        document.getElementById('scrape-input-container').classList.add('hidden');
+        document.getElementById('scrape-progress-container').classList.remove('hidden');
+        document.getElementById('scrape-status-text').innerText = "Rozpoczynanie pobierania...";
+
+        const consoleDiv = document.getElementById('scrape-console');
+
+        // Establish SSE connection
+        const eventSourceUrl = '/client/scrape-photos/stream?url=' + encodeURIComponent(urlValue);
+        scrapeEventSource = new EventSource(eventSourceUrl);
+
+        scrapeEventSource.addEventListener('log', function(e) {
+            const line = document.createElement('div');
+            line.innerText = e.data;
+            if (e.data.startsWith('[ERR]') || e.data.includes('error') || e.data.includes('Error')) {
+                line.className = 'text-rose-400';
+            } else if (e.data.startsWith('[OK]') || e.data.includes('zakończone') || e.data.includes('sukcesem')) {
+                line.className = 'text-emerald-400';
+            } else if (e.data.startsWith('[SYSTEM]')) {
+                line.className = 'text-indigo-400 font-bold';
+            }
+            consoleDiv.appendChild(line);
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+        });
+
+        scrapeEventSource.addEventListener('complete', function(e) {
+            document.getElementById('scrape-status-text').innerText = e.data === 'done' ? "Pobieranie zakończone sukcesem!" : "Wystąpił błąd podczas pobierania.";
+            document.getElementById('scrape-status-text').className = e.data === 'done' ? "text-emerald-400 font-bold font-sans" : "text-rose-400 font-bold font-sans";
+            document.getElementById('scrape-actions').classList.remove('hidden');
+            
+            if (scrapeEventSource) {
+                scrapeEventSource.close();
+                scrapeEventSource = null;
+            }
+        });
+
+        scrapeEventSource.onerror = function() {
+            const line = document.createElement('div');
+            line.innerText = '[ERR] Utracono połączenie z serwerem.';
+            line.className = 'text-rose-400 font-bold';
+            consoleDiv.appendChild(line);
+            document.getElementById('scrape-status-text').innerText = "Błąd połączenia.";
+            document.getElementById('scrape-status-text').className = "text-rose-400 font-bold font-sans";
+            document.getElementById('scrape-actions').classList.remove('hidden');
+            if (scrapeEventSource) {
+                scrapeEventSource.close();
+                scrapeEventSource = null;
+            }
+        };
+    };
+
+    window.reloadScrapedPhotos = function() {
+        closeScrapeModal();
+        htmx.ajax('GET', '/client/unmatched-photos', '#workspace-container');
+    };
+</script>

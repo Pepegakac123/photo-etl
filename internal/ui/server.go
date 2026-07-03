@@ -168,6 +168,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("GET /client/sort-screenshots/stream", s.handleSortScreenshotsStream)
 	s.mux.HandleFunc("GET /client/change", s.handleClientChange)
 	s.mux.HandleFunc("GET /client/unmatched-photos", s.handleUnmatchedPhotos)
+	s.mux.HandleFunc("GET /client/scrape-photos/stream", s.handleScrapePhotosStream)
 	s.mux.HandleFunc("POST /photos/manual-match", s.handleManualMatch)
 	s.mux.HandleFunc("POST /settings/save", s.handleSettingsSave)
 }

@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/Pepegakac123/photo-etl/internal/ingest"
+	"github.com/Pepegakac123/photo-etl/internal/scraper"
 	"github.com/Pepegakac123/photo-etl/internal/storage"
 	"github.com/Pepegakac123/photo-etl/internal/translate"
 	"github.com/Pepegakac123/photo-etl/internal/vision"
@@ -321,4 +322,70 @@ func calculateOpenAICost(model string, promptTokens, completionTokens int) float
 		outputRate = 0.000010
 	}
 	return (float64(promptTokens) * inputRate) + (float64(completionTokens) * outputRate)
+}
+
+func (s *Server) handleScrapePhotosStream(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	send := func(event, data string) {
+		fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, data)
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+	}
+
+	sendLog := func(msg string) {
+		send("log", msg)
+	}
+
+	targetURL := r.URL.Query().Get("url")
+	if targetURL == "" {
+		sendLog("[ERR] Brak podanego adresu URL.")
+		send("complete", "error")
+		return
+	}
+
+	if s.clientDir == "" {
+		sendLog("[ERR] Brak otwartego katalogu roboczego klienta.")
+		send("complete", "error")
+		return
+	}
+
+	// Find or create the Screenshots/WhatsApp destination folder
+	var screenshotsFolder string
+	entries, err := os.ReadDir(s.clientDir)
+	if err == nil {
+		for _, entry := range entries {
+			if entry.IsDir() {
+				nameLower := strings.ToLower(entry.Name())
+				if strings.Contains(nameLower, "whatsapp") || strings.Contains(nameLower, "zrzuty") {
+					screenshotsFolder = filepath.Join(s.clientDir, entry.Name())
+					break
+				}
+			}
+		}
+	}
+
+	if screenshotsFolder == "" {
+		// Create a default 'zrzuty' folder if none exists
+		screenshotsFolder = filepath.Join(s.clientDir, "zrzuty")
+		if err := os.MkdirAll(screenshotsFolder, 0755); err != nil {
+			sendLog(fmt.Sprintf("[ERR] Nie udało się utworzyć folderu zrzuty: %v", err))
+			send("complete", "error")
+			return
+		}
+		sendLog("[SYSTEM] Utworzono katalog 'zrzuty' dla pobranych zdjęć.")
+	}
+
+	ctx := r.Context()
+	err = scraper.ScrapePhotos(ctx, targetURL, screenshotsFolder, sendLog)
+	if err != nil {
+		sendLog(fmt.Sprintf("[ERR] %v", err))
+		send("complete", "error")
+		return
+	}
+
+	send("complete", "done")
 }
