@@ -238,31 +238,116 @@ func ScrapePhotos(ctx context.Context, targetURL string, outputDir string, fbCUs
 
 		// 2. Automatically find and crawl album links if we are on a general photos/profile page
 		if strings.Contains(targetURL, "sk=photos") || strings.Contains(targetURL, "/profile.php") {
-			reAlbum := regexp.MustCompile(`set=a\.(\d+)`)
-			albumMatches := reAlbum.FindAllStringSubmatch(dom, -1)
+			// Find any direct /media/set/?set=a.ID links in the DOM first
+			reAlbumDirect := regexp.MustCompile(`/media/set/\?set=a\.(\d+)`)
+			directMatches := reAlbumDirect.FindAllStringSubmatch(dom, -1)
 			
-			var albumURLs []string
-			seenAlbums := make(map[string]bool)
-			for _, m := range albumMatches {
-				albumID := m[1]
-				if !seenAlbums[albumID] {
-					seenAlbums[albumID] = true
-					albumURLs = append(albumURLs, fmt.Sprintf("https://www.facebook.com/media/set/?set=a.%s&type=3&locale=pl_PL", albumID))
+			albumIDs := make(map[string]bool)
+			for _, m := range directMatches {
+				albumIDs[m[1]] = true
+			}
+
+			// Also extract any set=a.ID directly present in links on the page
+			reSetDirect := regexp.MustCompile(`set=a\.(\d+)`)
+			setMatchesDirect := reSetDirect.FindAllStringSubmatch(dom, -1)
+			for _, m := range setMatchesDirect {
+				albumIDs[m[1]] = true
+			}
+
+			// Extract photo viewer links to discover timeline/system albums
+			reA := regexp.MustCompile(`<a[^>]+href="([^"]+)"`)
+			matchesA := reA.FindAllStringSubmatch(dom, -1)
+			
+			var photoURLs []string
+			seenPhotos := make(map[string]bool)
+			for _, m := range matchesA {
+				href := m[1]
+				href = strings.ReplaceAll(href, "&amp;", "&")
+				if (strings.Contains(href, "photo.php") || strings.Contains(href, "/photo/")) && !strings.Contains(href, "/photo_albums") {
+					var absoluteURL string
+					if strings.HasPrefix(href, "http") {
+						absoluteURL = href
+					} else {
+						absoluteURL = "https://www.facebook.com" + href
+					}
+					if !seenPhotos[absoluteURL] {
+						seenPhotos[absoluteURL] = true
+						photoURLs = append(photoURLs, absoluteURL)
+					}
 				}
+			}
+
+			if len(photoURLs) > 0 {
+				sendLog(fmt.Sprintf("[SYSTEM] Analiza %d wykrytych linków zdjęć w celu identyfikacji albumów...", len(photoURLs)))
+				
+				limit := 4
+				if len(photoURLs) < limit {
+					limit = len(photoURLs)
+				}
+				
+				for i := 0; i < limit; i++ {
+					pURL := photoURLs[i]
+					
+					// Optimization: if it already has set=a.ID, extract it directly without navigating!
+					reSetQuery := regexp.MustCompile(`set=a\.(\d+)`)
+					if reSetQuery.MatchString(pURL) {
+						m := reSetQuery.FindStringSubmatch(pURL)
+						albumID := m[1]
+						if !albumIDs[albumID] {
+							albumIDs[albumID] = true
+							sendLog(fmt.Sprintf("  [OK] Wykryto ID albumu z adresu URL: %s (Link: https://www.facebook.com/media/set/?set=a.%s&type=3)", albumID, albumID))
+						}
+						continue
+					}
+					
+					// Otherwise, navigate to the photo page to extract the set ID from its DOM
+					u, err := url.Parse(pURL)
+					if err == nil {
+						fbid := u.Query().Get("fbid")
+						sendLog(fmt.Sprintf("  Sprawdzanie metadanych zdjęcia %d/%d (fbid=%s)...", i+1, limit, fbid))
+						
+						if err := page.Navigate(pURL); err == nil {
+							page.MustWaitLoad()
+							time.Sleep(2 * time.Second)
+							photoDom := page.MustHTML()
+							
+							setMatches := reSetQuery.FindAllStringSubmatch(photoDom, -1)
+							for _, sm := range setMatches {
+								albumID := sm[1]
+								if !albumIDs[albumID] {
+									albumIDs[albumID] = true
+									sendLog(fmt.Sprintf("  [OK] Wykryto ID albumu z metadanych zdjęcia: %s (Link: https://www.facebook.com/media/set/?set=a.%s&type=3)", albumID, albumID))
+								}
+							}
+						}
+					}
+				}
+			}
+
+			// Convert discovered album IDs to URLs
+			var albumURLs []string
+			for id := range albumIDs {
+				albumURLs = append(albumURLs, fmt.Sprintf("https://www.facebook.com/media/set/?set=a.%s&type=3&locale=pl_PL", id))
 			}
 			
 			if len(albumURLs) > 0 {
-				sendLog(fmt.Sprintf("[SYSTEM] Wykryto %d albumów na profilu. Rozpoczynanie automatycznego skanowania...", len(albumURLs)))
+				sendLog(fmt.Sprintf("[SYSTEM] Rozpoczynanie skanowania %d zidentyfikowanych albumów...", len(albumURLs)))
 				for idx, albumURL := range albumURLs {
-					sendLog(fmt.Sprintf("  Skanowanie albumu %d/%d...", idx+1, len(albumURLs)))
+					reID := regexp.MustCompile(`set=a\.(\d+)`)
+					albumID := "nieznany"
+					if m := reID.FindStringSubmatch(albumURL); len(m) > 1 {
+						albumID = m[1]
+					}
+					
+					sendLog(fmt.Sprintf("  Skanowanie albumu %d/%d (ID: %s)...", idx+1, len(albumURLs), albumID))
 					
 					if err := page.Navigate(albumURL); err == nil {
 						page.MustWaitLoad()
 						time.Sleep(3 * time.Second)
 						bypassOverlays()
 						
-						// Scroll 8 times per album to dynamically load photos
-						for s := 0; s < 8; s++ {
+						// Scroll 12 times per album to dynamically load photos
+						for s := 0; s < 12; s++ {
 							bypassOverlays()
 							_, _ = page.Eval(`() => {
 								const amt = 400;
@@ -280,7 +365,10 @@ func ScrapePhotos(ctx context.Context, targetURL string, outputDir string, fbCUs
 						}
 						
 						albumDom := page.MustHTML()
+						beforeCount := len(imageUrls)
 						extractImagesFromDom(albumDom)
+						addedCount := len(imageUrls) - beforeCount
+						sendLog(fmt.Sprintf("  [OK] Skanowanie albumu %s zakończone (znaleziono %d zdjęć).", albumID, addedCount))
 					}
 				}
 			}
