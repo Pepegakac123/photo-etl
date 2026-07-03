@@ -346,8 +346,8 @@ func ScrapePhotos(ctx context.Context, targetURL string, outputDir string, fbCUs
 						time.Sleep(3 * time.Second)
 						bypassOverlays()
 						
-						// Scroll 12 times per album to dynamically load photos
-						for s := 0; s < 12; s++ {
+						// Scroll 25 times per album to dynamically load all photos
+						for s := 0; s < 25; s++ {
 							bypassOverlays()
 							_, _ = page.Eval(`() => {
 								const amt = 400;
@@ -448,6 +448,7 @@ func ScrapePhotos(ctx context.Context, targetURL string, outputDir string, fbCUs
 	}
 
 	downloadCount := 0
+	skippedCount := 0
 	for i, imgURL := range imageUrls {
 		imgURLClean := strings.ToLower(imgURL)
 		if !isFB {
@@ -487,6 +488,7 @@ func ScrapePhotos(ctx context.Context, targetURL string, outputDir string, fbCUs
 		}
 
 		if len(data) < 10240 { // skip tiny images < 10KB
+			skippedCount++
 			continue
 		}
 
@@ -513,7 +515,7 @@ func ScrapePhotos(ctx context.Context, targetURL string, outputDir string, fbCUs
 		downloadCount++
 	}
 
-	sendLog(fmt.Sprintf("[OK] Pobieranie zakończone! Pomyślnie pobrano %d zdjęć do katalogu klienta.", downloadCount))
+	sendLog(fmt.Sprintf("[OK] Pobieranie zakończone! Pomyślnie pobrano %d wysokiej jakości zdjęć do katalogu klienta (pominięto %d małych miniatur/ikon).", downloadCount, skippedCount))
 	return nil
 }
 
