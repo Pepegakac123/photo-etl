@@ -154,13 +154,14 @@ func ScrapePhotos(ctx context.Context, targetURL string, outputDir string, fbCUs
 	time.Sleep(1 * time.Second)
 
 	sendLog("[SYSTEM] Przewijanie strony w celu załadowania obrazów (lazy-loading)...")
-	// Scroll down 15 times to trigger dynamic loading of images
-	for i := 0; i < 15; i++ {
+	// Scroll down 25 times to trigger dynamic loading of images
+	for i := 0; i < 25; i++ {
+		sendLog(fmt.Sprintf("  Przewijanie strony (%d/25)...", i+1))
 		bypassOverlays()
 		
 		// Scroll window and any scrollable containers
 		_, _ = page.Eval(`() => {
-			const amt = 350;
+			const amt = 400;
 			window.scrollBy(0, amt);
 			document.querySelectorAll('div').forEach(el => {
 				if (el.scrollHeight > el.clientHeight) {
@@ -171,7 +172,7 @@ func ScrapePhotos(ctx context.Context, targetURL string, outputDir string, fbCUs
 				}
 			});
 		}`)
-		time.Sleep(600 * time.Millisecond)
+		time.Sleep(1500 * time.Millisecond)
 	}
 
 	sendLog("[SYSTEM] Parsowanie struktury strony i ekstrakcja zdjęć...")
