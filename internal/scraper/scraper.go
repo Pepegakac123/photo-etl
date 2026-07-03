@@ -37,29 +37,16 @@ func ScrapePhotos(ctx context.Context, targetURL string, outputDir string, fbCUs
 		return fmt.Errorf("pusty adres URL")
 	}
 
-	// Automatically rewrite Facebook URLs to target the albums tab to find system albums
+	// Automatically rewrite Facebook URLs to target the photos tab if no tab is selected
 	if strings.Contains(targetURL, "facebook.com") {
 		if strings.Contains(targetURL, "profile.php") {
-			if !strings.Contains(targetURL, "sk=photos_albums") {
+			if !strings.Contains(targetURL, "sk=") {
 				u, err := url.Parse(targetURL)
 				if err == nil {
 					q := u.Query()
-					q.Set("sk", "photos_albums")
+					q.Set("sk", "photos")
 					u.RawQuery = q.Encode()
 					targetURL = u.String()
-				}
-			}
-		} else {
-			// Vanity format URL like facebook.com/username
-			u, err := url.Parse(targetURL)
-			if err == nil {
-				pathParts := strings.Split(strings.Trim(u.Path, "/"), "/")
-				if len(pathParts) > 0 {
-					username := pathParts[0]
-					if username != "profile.php" && username != "media" && username != "photo.php" {
-						u.Path = fmt.Sprintf("/%s/photos_albums", username)
-						targetURL = u.String()
-					}
 				}
 			}
 		}
@@ -183,15 +170,15 @@ func ScrapePhotos(ctx context.Context, targetURL string, outputDir string, fbCUs
 
 	isFB := strings.Contains(targetURL, "facebook.com")
 	needScroll := true
-	if isFB && (strings.Contains(targetURL, "sk=photos_albums") || !strings.Contains(targetURL, "/media/set/")) {
+	if isFB && strings.Contains(targetURL, "/media/set/") {
 		needScroll = false
 	}
 
 	if needScroll {
-		sendLog("[SYSTEM] Przewijanie strony w celu załadowania obrazów (lazy-loading)...")
-		// Scroll down 25 times to trigger dynamic loading of images
-		for i := 0; i < 25; i++ {
-			sendLog(fmt.Sprintf("  Przewijanie strony (%d/25)...", i+1))
+		sendLog("[SYSTEM] Przewijanie strony w celu załadowania siatki zdjęć...")
+		// Scroll down 15 times to trigger lazy-loading of photo grid items
+		for i := 0; i < 15; i++ {
+			sendLog(fmt.Sprintf("  Przewijanie strony (%d/15)...", i+1))
 			bypassOverlays()
 			
 			// Scroll window and any scrollable containers
@@ -210,7 +197,7 @@ func ScrapePhotos(ctx context.Context, targetURL string, outputDir string, fbCUs
 			time.Sleep(1500 * time.Millisecond)
 		}
 	} else {
-		sendLog("[SYSTEM] Profil Facebook: Pomijanie wstępnego scrollowania głównej listy albumów.")
+		sendLog("[SYSTEM] Profil Facebook: Pomijanie wstępnego scrollowania (bezpośredni link do albumu).")
 	}
 
 	sendLog("[SYSTEM] Parsowanie struktury strony i ekstrakcja zdjęć...")
@@ -251,7 +238,7 @@ func ScrapePhotos(ctx context.Context, targetURL string, outputDir string, fbCUs
 
 		// 2. Automatically find and crawl album links if we are on a general photos/profile page
 		if strings.Contains(targetURL, "sk=photos") || strings.Contains(targetURL, "/profile.php") {
-			reAlbum := regexp.MustCompile(`/media/set/\?set=a\.(\d+)`)
+			reAlbum := regexp.MustCompile(`set=a\.(\d+)`)
 			albumMatches := reAlbum.FindAllStringSubmatch(dom, -1)
 			
 			var albumURLs []string
