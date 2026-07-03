@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.1] - 2026-07-03
+### Fixed
+- **Embedded Templates Fallback**: Committed and pushed the template embedding code (`views/views.go` and `internal/ui/server.go` fallback logic) to ensure the binary is portable and runs correctly when executed globally from outside the project directory.
+
 ## [1.1.0] - 2026-07-02
 ### Added
 - **Multiple Service Mapping for Client Photos**: Allowed assigning a single client WhatsApp/screenshot photo to multiple services. The client photos view now shows all photos and displays a list of badges under each image indicating which services they are mapped to.

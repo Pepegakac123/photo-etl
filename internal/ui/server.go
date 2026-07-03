@@ -27,6 +27,7 @@ import (
 	"github.com/Pepegakac123/photo-etl/internal/stock"
 	"github.com/Pepegakac123/photo-etl/internal/storage"
 	"github.com/Pepegakac123/photo-etl/internal/translate"
+	"github.com/Pepegakac123/photo-etl/views"
 )
 
 type Server struct {
@@ -114,9 +115,26 @@ func (s *Server) ParseTemplates() error {
 	tmpl := template.New("").Funcs(funcMap)
 	pattern := filepath.Join(s.templatesDir, "*.html")
 	var err error
-	s.tmpl, err = tmpl.ParseGlob(pattern)
-	if err != nil {
-		return fmt.Errorf("failed to parse templates in %s: %w", s.templatesDir, err)
+
+	// If templatesDir is the default "views", check if the views folder exists and contains HTML files locally.
+	// If it doesn't, fall back to the embedded views template FS so the binary is portable.
+	useEmbedded := false
+	if s.templatesDir == "views" {
+		if files, err := filepath.Glob(pattern); err != nil || len(files) == 0 {
+			useEmbedded = true
+		}
+	}
+
+	if useEmbedded {
+		s.tmpl, err = tmpl.ParseFS(views.Templates, "*.html")
+		if err != nil {
+			return fmt.Errorf("failed to parse embedded templates: %w", err)
+		}
+	} else {
+		s.tmpl, err = tmpl.ParseGlob(pattern)
+		if err != nil {
+			return fmt.Errorf("failed to parse templates in %s: %w", s.templatesDir, err)
+		}
 	}
 	return nil
 }
