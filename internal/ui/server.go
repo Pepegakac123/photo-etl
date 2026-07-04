@@ -1288,6 +1288,7 @@ func (s *Server) handleAddPhoto(w http.ResponseWriter, r *http.Request) {
 
 	srcPath := r.URL.Query().Get("path")
 	source := r.URL.Query().Get("source")
+	title := r.URL.Query().Get("title")
 	svc, err := s.db.GetService(ctx, serviceID)
 	if err != nil {
 		http.Error(w, "Service not found", http.StatusNotFound)
@@ -1318,7 +1319,7 @@ func (s *Server) handleAddPhoto(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Add photo to database as approved since user accepted it
-	_, err = s.db.CreatePhoto(ctx, serviceID, finalPath, source, "approved")
+	_, err = s.db.CreatePhotoWithTitle(ctx, serviceID, finalPath, source, "approved", title)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to record photo in database: %v", err), http.StatusInternalServerError)
 		return
@@ -1410,8 +1411,9 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 				destPath := filepath.Join(destServiceDir, filename)
 
 				if p.Source == "Stock" {
-					if err := downloadFile(p.FilePath, destPath); err != nil {
-						log.Printf("[EXPORT] Failed to download stock photo from %s: %v", p.FilePath, err)
+					downloadURL := s.resolveStockDownloadURL(ctx, p, svc.Name, nil)
+					if err := downloadFile(downloadURL, destPath); err != nil {
+						log.Printf("[EXPORT] Failed to download stock photo from %s: %v", downloadURL, err)
 					} else {
 						copyCount++
 					}
@@ -1553,6 +1555,42 @@ func copyFile(src, dst string) error {
 
 	_, err = io.Copy(out, in)
 	return err
+}
+
+func (s *Server) resolveStockDownloadURL(ctx context.Context, p *storage.Photo, svcName string, sendLog func(string)) string {
+	downloadURL := p.FilePath
+	isEnvato := strings.Contains(p.FilePath, "envato")
+
+	if isEnvato {
+		query := p.Title
+		if query == "" {
+			query = svcName
+		}
+
+		if sendLog != nil {
+			sendLog(fmt.Sprintf("  -> Wyszukiwanie czystej wersji zdjęcia na Envato Elements dla: %q...", query))
+		} else {
+			log.Printf("[EXPORT] Searching clean Envato Elements photo for: %q", query)
+		}
+
+		elementsURL, err := stock.GetEnvatoElementsUnwatermarkedURL(ctx, query, s.cfg.EnvatoElementsCookies)
+		if err == nil && elementsURL != "" {
+			downloadURL = elementsURL
+			if sendLog != nil {
+				sendLog("  [SYSTEM] Znaleziono dopasowanie na Envato Elements. Pobieranie wersji unwatermarked...")
+			} else {
+				log.Printf("[EXPORT] Found Envato Elements match: %s", elementsURL)
+			}
+		} else {
+			if sendLog != nil {
+				sendLog(fmt.Sprintf("  [SYSTEM] Nie udało się znaleźć czystej wersji na Elements (%v). Pobieranie podglądu z watermarkiem...", err))
+			} else {
+				log.Printf("[EXPORT] Envato Elements lookup failed: %v", err)
+			}
+		}
+	}
+
+	return downloadURL
 }
 
 func downloadFile(fileURL, dst string) error {
@@ -1721,13 +1759,9 @@ func (s *Server) handleExportStream(w http.ResponseWriter, r *http.Request) {
 				destPath := filepath.Join(destServiceDir, filename)
 
 				if p.Source == "Stock" {
-					if strings.Contains(p.FilePath, "envatousercontent") {
-						sendLog(fmt.Sprintf("  -> Pobieranie oryginalnego zdjęcia z Envato: %s ...", filename))
-					} else {
-						sendLog(fmt.Sprintf("  -> Pobieranie zdjęcia stockowego (Unsplash mock): %s ...", filename))
-					}
-					if err := downloadFile(p.FilePath, destPath); err != nil {
-						sendLog(fmt.Sprintf("  [ERR] Błąd pobierania z %s: %v", p.FilePath, err))
+					downloadURL := s.resolveStockDownloadURL(ctx, p, svc.Name, sendLog)
+					if err := downloadFile(downloadURL, destPath); err != nil {
+						sendLog(fmt.Sprintf("  [ERR] Błąd pobierania z %s: %v", downloadURL, err))
 					} else {
 						// Ensure Envato stock photos are at least 1920px wide
 						if err := ensureMinimumWidth(destPath, 1920); err != nil {

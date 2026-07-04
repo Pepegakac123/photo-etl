@@ -93,6 +93,18 @@
                                placeholder="Unsplash Access Key"
                                class="w-full px-3 py-2 bg-[#0A0F1A] border border-[#23314B] focus:border-indigo-500 text-xs text-white rounded-lg focus:outline-none font-mono">
                     </div>
+
+                    <div class="space-y-1.5 md:col-span-2">
+                        <label for="envato_elements_cookies" class="text-xs font-bold text-gray-400 uppercase tracking-wider">Envato Elements Cookies (SSO / Session Cookies)</label>
+                        <textarea id="envato_elements_cookies" name="envato_elements_cookies" rows="3"
+                                  placeholder="Wklej tutaj ciasteczka sesyjne z elements.envato.com (np. envatoid=...; elements.session.5=...;)"
+                                  class="w-full px-3 py-2 bg-[#0A0F1A] border border-[#23314B] focus:border-indigo-500 text-xs text-white rounded-lg focus:outline-none font-mono">{{ .Config.EnvatoElementsCookies }}</textarea>
+                        <p class="text-[11px] text-gray-400 leading-relaxed mt-1 select-none">
+                            <strong>Instrukcja:</strong> Aby uniknąć przekierowania na <code>app.envato.com</code>, otwórz bezpośredni link szczegółów: 
+                            <a href="https://elements.envato.com/pl/bathroom-designed-with-elegance-PVJSZNU" target="_blank" class="text-indigo-400 hover:text-indigo-300 font-semibold underline">Otwórz stronę zdjęcia w nowej karcie</a>.<br>
+                            Następnie naciśnij <code>F12</code> (Zbadaj) -> zakładka <strong>Application / Aplikacja</strong> -> w menu po lewej rozwiń <strong>Cookies</strong> -> kliknij na <strong><code>https://elements.envato.com</code></strong> i skopiuj ciasteczka <code>_elements_session_4</code> oraz <code>elements.session.5</code>, po czym wklej je powyżej.
+                        </p>
+                    </div>
                 </div>
 
                 <!-- GoPress WordPress Config -->

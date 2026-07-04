@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.3] - 2026-07-04
+### Added
+- **Envato Elements Unwatermarked Downloader**: Integrated a premium stock photo downloader that searches `elements.envato.com` using a safe 4-word slug query (preventing Envato server routing crashes) and maps matches using an intelligent thumbnail-alt string-similarity scoring algorithm.
+- **Envato Elements Cookies & UI Integration**: Added support for elements session cookies (`_elements_session_4` and `elements.session.5`) saved to `config.yaml` via a new settings field. Included clear instructions and a direct link to prevent automatic dashboard redirects. Added an informational banner to Envato Stock search results linking to configuration settings.
+- **Fast Facebook Scraper & distributed sampling**: Replaced Rod browser-level photo page navigation with concurrent HTTP GET requests using cookies, reducing scanning from 40s to 2-3s. Implemented distributed sampling (sampling 25 items across timeline) and increased scroll loops to 25 to discover all timeline/mobile upload albums. Added logging for skipped thumbnails (<10KB).
+
 ## [1.1.2] - 2026-07-03
 ### Added
 - **Facebook Cookie & Login Consent Bypass**: Integrated frame-aware, element-specific cookie banner traversal and automated close-button clicking (`aria-label` based) to dynamically bypass cookie consent and login modals without breaking page layouts.

@@ -210,6 +210,7 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 	openaiApiKey := r.FormValue("openai_api_key")
 	aiVisionModel := r.FormValue("ai_vision_model")
 	envatoApiToken := r.FormValue("envato_api_token")
+	envatoElementsCookies := r.FormValue("envato_elements_cookies")
 	unsplashAccessKey := r.FormValue("unsplash_access_key")
 	nanoBananaKey := r.FormValue("nano_banana_key")
 	imageGenPrompt := r.FormValue("image_generation_base_prompt")
@@ -231,6 +232,7 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 	s.cfg.OpenAIApiKey = openaiApiKey
 	s.cfg.AiVisionModel = aiVisionModel
 	s.cfg.EnvatoApiToken = envatoApiToken
+	s.cfg.EnvatoElementsCookies = envatoElementsCookies
 	s.cfg.UnsplashAccessKey = unsplashAccessKey
 	s.cfg.NanoBananaKey = nanoBananaKey
 	s.cfg.ImageGenerationBasePrompt = imageGenPrompt

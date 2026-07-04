@@ -27,6 +27,7 @@ type Photo struct {
 	FilePath  string `db:"file_path"`
 	Source    string `db:"source"` // Client, LocalGallery, Stock, AI
 	Status    string `db:"status"` // pending, approved, rejected
+	Title     string `db:"title"`
 }
 
 type GalleryFolder struct {
@@ -77,6 +78,7 @@ func InitDB(dataSourceName string) (*DB, error) {
 		file_path TEXT NOT NULL,
 		source TEXT NOT NULL,
 		status TEXT NOT NULL DEFAULT 'pending',
+		title TEXT DEFAULT '',
 		FOREIGN KEY(service_id) REFERENCES services(id) ON DELETE CASCADE
 	);
 
@@ -107,6 +109,7 @@ func InitDB(dataSourceName string) (*DB, error) {
 
 	// Try to add polish_translation column in case the database was created with an older version
 	_, _ = sqlDB.Exec("ALTER TABLE services ADD COLUMN polish_translation TEXT DEFAULT ''")
+	_, _ = sqlDB.Exec("ALTER TABLE photos ADD COLUMN title TEXT DEFAULT ''")
 
 	return &DB{db: sqlDB}, nil
 }
@@ -184,7 +187,12 @@ func (d *DB) UpdateServiceTranslation(ctx context.Context, id int64, polishTrans
 
 // CreatePhoto inserts a new photo and returns its ID.
 func (d *DB) CreatePhoto(ctx context.Context, serviceID int64, filePath string, source string, status string) (int64, error) {
-	res, err := d.db.ExecContext(ctx, "INSERT INTO photos (service_id, file_path, source, status) VALUES (?, ?, ?, ?)", serviceID, filePath, source, status)
+	return d.CreatePhotoWithTitle(ctx, serviceID, filePath, source, status, "")
+}
+
+// CreatePhotoWithTitle inserts a new photo with a title and returns its ID.
+func (d *DB) CreatePhotoWithTitle(ctx context.Context, serviceID int64, filePath string, source string, status string, title string) (int64, error) {
+	res, err := d.db.ExecContext(ctx, "INSERT INTO photos (service_id, file_path, source, status, title) VALUES (?, ?, ?, ?, ?)", serviceID, filePath, source, status, title)
 	if err != nil {
 		return 0, fmt.Errorf("failed to insert photo: %w", err)
 	}
@@ -197,7 +205,7 @@ func (d *DB) CreatePhoto(ctx context.Context, serviceID int64, filePath string, 
 
 // ListPhotosByService returns all photos for a given service.
 func (d *DB) ListPhotosByService(ctx context.Context, serviceID int64) ([]*Photo, error) {
-	rows, err := d.db.QueryContext(ctx, "SELECT id, service_id, file_path, source, status FROM photos WHERE service_id = ?", serviceID)
+	rows, err := d.db.QueryContext(ctx, "SELECT id, service_id, file_path, source, status, title FROM photos WHERE service_id = ?", serviceID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query photos: %w", err)
 	}
@@ -206,7 +214,7 @@ func (d *DB) ListPhotosByService(ctx context.Context, serviceID int64) ([]*Photo
 	var photos []*Photo
 	for rows.Next() {
 		var p Photo
-		if err := rows.Scan(&p.ID, &p.ServiceID, &p.FilePath, &p.Source, &p.Status); err != nil {
+		if err := rows.Scan(&p.ID, &p.ServiceID, &p.FilePath, &p.Source, &p.Status, &p.Title); err != nil {
 			return nil, fmt.Errorf("failed to scan photo row: %w", err)
 		}
 		photos = append(photos, &p)
@@ -303,9 +311,9 @@ func (d *DB) ListGalleryFolders(ctx context.Context) ([]*GalleryFolder, error) {
 
 // GetPhoto retrieves a single photo by its ID.
 func (d *DB) GetPhoto(ctx context.Context, id int64) (*Photo, error) {
-	row := d.db.QueryRowContext(ctx, "SELECT id, service_id, file_path, source, status FROM photos WHERE id = ?", id)
+	row := d.db.QueryRowContext(ctx, "SELECT id, service_id, file_path, source, status, title FROM photos WHERE id = ?", id)
 	var p Photo
-	err := row.Scan(&p.ID, &p.ServiceID, &p.FilePath, &p.Source, &p.Status)
+	err := row.Scan(&p.ID, &p.ServiceID, &p.FilePath, &p.Source, &p.Status, &p.Title)
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan photo %d: %w", id, err)
 	}

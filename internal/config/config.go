@@ -30,6 +30,7 @@ type Config struct {
 	OpenAIApiKey              string `yaml:"openai_api_key"`
 	AiVisionModel             string `yaml:"ai_vision_model"`
 	EnvatoApiToken            string `yaml:"envato_api_token"`
+	EnvatoElementsCookies     string `yaml:"envato_elements_cookies"`
 	UnsplashAccessKey         string `yaml:"unsplash_access_key"`
 	NanoBananaKey             string `yaml:"nano_banana_key"`
 	VisionSortingPrompt       string `yaml:"vision_sorting_prompt"`
@@ -99,6 +100,9 @@ func LoadConfig(path string) (*Config, error) {
 	}
 	if val := os.Getenv("ENVATO_API_TOKEN"); val != "" {
 		cfg.EnvatoApiToken = val
+	}
+	if val := os.Getenv("ENVATO_ELEMENTS_COOKIES"); val != "" {
+		cfg.EnvatoElementsCookies = val
 	}
 	if val := os.Getenv("NANO_BANANA_KEY"); val != "" {
 		cfg.NanoBananaKey = val
