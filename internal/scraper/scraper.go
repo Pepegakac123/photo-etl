@@ -280,16 +280,39 @@ func ScrapePhotos(ctx context.Context, targetURL string, outputDir string, fbCUs
 			if len(photoURLs) > 0 {
 				sendLog(fmt.Sprintf("[SYSTEM] Analiza %d wykrytych linków zdjęć w celu identyfikacji albumów...", len(photoURLs)))
 				
-				limit := 4
-				if len(photoURLs) < limit {
-					limit = len(photoURLs)
+				// Sample 25 photos: first 5 (recent timeline) + 20 distributed remaining (older albums)
+				var sampledURLs []string
+				for i := 0; i < 5 && i < len(photoURLs); i++ {
+					sampledURLs = append(sampledURLs, photoURLs[i])
 				}
-				
-				for i := 0; i < limit; i++ {
-					pURL := photoURLs[i]
-					
-					// Optimization: if it already has set=a.ID, extract it directly without navigating!
-					reSetQuery := regexp.MustCompile(`set=a\.(\d+)`)
+				if len(photoURLs) > 5 {
+					remaining := photoURLs[5:]
+					sampleSize := 20
+					if len(remaining) <= sampleSize {
+						sampledURLs = append(sampledURLs, remaining...)
+					} else {
+						step := len(remaining) / sampleSize
+						for i := 0; i < sampleSize; i++ {
+							sampledURLs = append(sampledURLs, remaining[i*step])
+						}
+					}
+				}
+
+				cUserClean, _ := url.QueryUnescape(fbCUser)
+				xsClean, _ := url.QueryUnescape(fbXS)
+
+				clientForAlbums := &http.Client{
+					Timeout: 5 * time.Second,
+				}
+				reSetQuery := regexp.MustCompile(`set=a\.(\d+)`)
+
+				for idx, pURL := range sampledURLs {
+					// Early exit: if we have found Cover, Profile, Timeline and Mobile Uploads (4 albums), we are done!
+					if len(albumIDs) >= 4 {
+						break
+					}
+
+					// Optimization: if it already has set=a.ID, extract it directly without fetching
 					if reSetQuery.MatchString(pURL) {
 						m := reSetQuery.FindStringSubmatch(pURL)
 						albumID := m[1]
@@ -299,24 +322,33 @@ func ScrapePhotos(ctx context.Context, targetURL string, outputDir string, fbCUs
 						}
 						continue
 					}
-					
-					// Otherwise, navigate to the photo page to extract the set ID from its DOM
+
+					// Otherwise, fetch the photo page via HTTP GET with cookies (lightning fast!)
 					u, err := url.Parse(pURL)
 					if err == nil {
 						fbid := u.Query().Get("fbid")
-						sendLog(fmt.Sprintf("  Sprawdzanie metadanych zdjęcia %d/%d (fbid=%s)...", i+1, limit, fbid))
+						sendLog(fmt.Sprintf("  Sprawdzanie metadanych zdjęcia %d/%d (fbid=%s)...", idx+1, len(sampledURLs), fbid))
 						
-						if err := page.Navigate(pURL); err == nil {
-							page.MustWaitLoad()
-							time.Sleep(2 * time.Second)
-							photoDom := page.MustHTML()
+						req, err := http.NewRequestWithContext(ctx, "GET", pURL, nil)
+						if err == nil {
+							req.Header.Set("Cookie", fmt.Sprintf("c_user=%s; xs=%s", cUserClean, xsClean))
+							req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+							req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
 							
-							setMatches := reSetQuery.FindAllStringSubmatch(photoDom, -1)
-							for _, sm := range setMatches {
-								albumID := sm[1]
-								if !albumIDs[albumID] {
-									albumIDs[albumID] = true
-									sendLog(fmt.Sprintf("  [OK] Wykryto ID albumu z metadanych zdjęcia: %s (Link: https://www.facebook.com/media/set/?set=a.%s&type=3)", albumID, albumID))
+							resp, err := clientForAlbums.Do(req)
+							if err == nil {
+								bodyBytes, err := io.ReadAll(resp.Body)
+								resp.Body.Close()
+								if err == nil {
+									body := string(bodyBytes)
+									setMatches := reSetQuery.FindAllStringSubmatch(body, -1)
+									for _, sm := range setMatches {
+										albumID := sm[1]
+										if !albumIDs[albumID] {
+											albumIDs[albumID] = true
+											sendLog(fmt.Sprintf("  [OK] Wykryto ID albumu z metadanych zdjęcia: %s (Link: https://www.facebook.com/media/set/?set=a.%s&type=3)", albumID, albumID))
+										}
+									}
 								}
 							}
 						}
