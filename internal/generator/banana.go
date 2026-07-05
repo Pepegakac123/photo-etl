@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 type BananaClient struct {
@@ -245,6 +246,135 @@ func (c *BananaClient) writeMockImage(outputPath string) error {
 	}
 
 	return os.WriteFile(outputPath, data, 0644)
+}
+
+func (c *BananaClient) EditImage(ctx context.Context, inputImagePath, editPrompt, modelName, imageSize, outputPath string) error {
+	if c.apiKey == "" {
+		return c.writeMockImage(outputPath)
+	}
+
+	modelToUse := modelName
+	if modelToUse == "" {
+		modelToUse = "gemini-3.1-flash-image"
+	}
+
+	// Read original image bytes
+	imgBytes, err := os.ReadFile(inputImagePath)
+	if err != nil {
+		return fmt.Errorf("failed to read input image: %w", err)
+	}
+
+	// Determine mime type
+	mimeType := "image/png"
+	if strings.HasSuffix(strings.ToLower(inputImagePath), ".jpg") || strings.HasSuffix(strings.ToLower(inputImagePath), ".jpeg") {
+		mimeType = "image/jpeg"
+	}
+
+	base64Img := base64.StdEncoding.EncodeToString(imgBytes)
+
+	type multiInputPart struct {
+		Type     string `json:"type"`
+		Text     string `json:"text,omitempty"`
+		Data     string `json:"data,omitempty"`
+		MimeType string `json:"mime_type,omitempty"`
+	}
+
+	type editRequest struct {
+		Model          string                `json:"model"`
+		Input          []multiInputPart      `json:"input"`
+		ResponseFormat *responseFormatStruct `json:"response_format,omitempty"`
+	}
+
+	var responseFormat *responseFormatStruct
+	if imageSize != "" {
+		responseFormat = &responseFormatStruct{
+			Type:      "image",
+			ImageSize: imageSize,
+		}
+	} else {
+		responseFormat = &responseFormatStruct{
+			Type:      "image",
+			ImageSize: "1K", // Default to 1K for speed/cost
+		}
+	}
+
+	payload := editRequest{
+		Model: modelToUse,
+		Input: []multiInputPart{
+			{
+				Type: "text",
+				Text: editPrompt,
+			},
+			{
+				Type:     "image",
+				Data:     base64Img,
+				MimeType: mimeType,
+			},
+		},
+		ResponseFormat: responseFormat,
+	}
+
+	bodyBytes, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL, bytes.NewBuffer(bodyBytes))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("x-goog-api-key", c.apiKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send request to Gemini: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("gemini returned status %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	var interactionsResp interactionsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&interactionsResp); err != nil {
+		return fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	var outBase64 string
+	found := false
+	for i := len(interactionsResp.Steps) - 1; i >= 0; i-- {
+		step := interactionsResp.Steps[i]
+		if step.Type == "model_output" {
+			for j := len(step.Content) - 1; j >= 0; j-- {
+				block := step.Content[j]
+				if block.Type == "image" && block.Data != "" {
+					outBase64 = block.Data
+					found = true
+					break
+				}
+			}
+		}
+		if found {
+			break
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("no image returned from Gemini edit request")
+	}
+
+	decodedBytes, err := base64.StdEncoding.DecodeString(outBase64)
+	if err != nil {
+		return fmt.Errorf("failed to decode output image bytes: %w", err)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(outputPath), 0755); err != nil {
+		return fmt.Errorf("failed to create output dir: %w", err)
+	}
+
+	return os.WriteFile(outputPath, decodedBytes, 0644)
 }
 
 func (c *BananaClient) GenerateText(ctx context.Context, modelName, prompt string) (string, error) {

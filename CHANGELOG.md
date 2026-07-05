@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.0] - 2026-07-05
+### Added
+- **Multi-Service Association for Approved Photos**: Added a button to each approved/pending photo card inside the workspace that toggles a multi-select check-list overlay of all other client services. HTMX dynamically creates the new photo associations in SQLite and sends OOB updates to instantly refresh progress counters of all updated services in the sidebar.
+- **AI Inpainting (Image Editing)**: Added a "Pencil/Magic Wand" button for AI-generated photos. When clicked, it displays an overlay where the user can enter instructions to modify the image (e.g. "change blue chair to brown"). Generates the edited photo via `gemini-3.1-flash-image` (Nano Banana 2) and updates the database record with a new file path and the modification prompt.
+- **Session Health Status Indicator**: Placed a color-coded status bar in the main application header indicating the connection health status of Gemini (Nano Banana), OpenAI (Vision), and Envato Elements session cookies at a glance.
+- **Structured Cookie Fields for Envato Elements**: Redesigned the Envato session cookies input in Settings to provide separate pre-defined fields for `_elements_session_4` and `elements.session.5`. Users can customize cookie keys if needed, avoiding manual parsing of the header string.
+
 ## [1.1.3] - 2026-07-04
 ### Added
 - **Envato Elements Unwatermarked Downloader**: Integrated a premium stock photo downloader that searches `elements.envato.com` using a safe 4-word slug query (preventing Envato server routing crashes) and maps matches using an intelligent thumbnail-alt string-similarity scoring algorithm.

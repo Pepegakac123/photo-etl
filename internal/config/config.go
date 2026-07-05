@@ -51,7 +51,7 @@ func LoadConfig(path string) (*Config, error) {
 		ConcurrencyLimit:       5,
 		AiVisionModel:          "gpt-4o-mini",
 		VisionSortingPrompt:    "Jesteś ekspertem budowlanym. Przypisz zdjęcie do jednej z podanych kategorii. Jeśli zdjęcie nie pasuje do żadnej kategorii lub przedstawia śmieci, zwróć 'REJECT'.",
-		ImageGenerationBasePrompt: "Zdjęcie musi wyglądać jak zrobione amatorsko, telefonem komórkowym, naturalne oświetlenie na budowie. Złota zasada: brak widocznych twarzy, brak logotypów, brak napisów. Styl surowy i realistyczny.",
+		ImageGenerationBasePrompt: "Zdjęcie musi wyglądać jak zrobione amatorsko, telefonem komórkowym, naturalne oświetlenie na budowie. Złota zasada: brak widocznych twarzy, całkowity zakaz pokazywania pracowników od przodu/frontu, brak logotypów, brak jakichkolwiek napisów, tekstów lub znaków markowych na odzieży, narzędziach i pojazdach. Styl surowy, realistyczny, zbliżenia na materiały i narzędzia.",
 	}
 
 	if path != "" {

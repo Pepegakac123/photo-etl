@@ -67,6 +67,26 @@
                 <p class="text-xs text-indigo-400 font-medium tracking-wide uppercase">Asset Manager & Optimizer</p>
             </div>
         </div>
+
+        <!-- Session Health Status Bar -->
+        <div class="hidden md:flex items-center gap-4 bg-[#11192A]/60 px-4 py-2 rounded-xl border border-[#23314B]/60 text-[10px] select-none uppercase tracking-wider font-semibold">
+            <span class="text-gray-400">Status połączeń:</span>
+            <!-- Gemini API -->
+            <div class="flex items-center gap-1.5" title="{{ if .Config.NanoBananaKey }}Połączenie z Gemini skonfigurowane{{ else }}Brak klucza Gemini{{ end }}">
+                <span class="w-1.5 h-1.5 rounded-full {{ if .Config.NanoBananaKey }}bg-emerald-500 shadow-[0_0_8px_#10b981]{{ else }}bg-rose-500 shadow-[0_0_8px_#f43f5e]{{ end }}"></span>
+                <span class="text-gray-300 font-mono">Gemini</span>
+            </div>
+            <!-- OpenAI API -->
+            <div class="flex items-center gap-1.5" title="{{ if .Config.OpenAIApiKey }}Połączenie z OpenAI skonfigurowane{{ else }}Brak klucza OpenAI{{ end }}">
+                <span class="w-1.5 h-1.5 rounded-full {{ if .Config.OpenAIApiKey }}bg-emerald-500 shadow-[0_0_8px_#10b981]{{ else }}bg-rose-500 shadow-[0_0_8px_#f43f5e]{{ end }}"></span>
+                <span class="text-gray-300 font-mono">Vision</span>
+            </div>
+            <!-- Envato Elements Cookies -->
+            <div class="flex items-center gap-1.5" title="{{ if .Config.EnvatoElementsCookies }}Ciasteczka Elements są ustawione{{ else }}Brak ciasteczek Elements{{ end }}">
+                <span class="w-1.5 h-1.5 rounded-full {{ if .Config.EnvatoElementsCookies }}bg-emerald-500 shadow-[0_0_8px_#10b981]{{ else }}bg-rose-500 shadow-[0_0_8px_#f43f5e]{{ end }}"></span>
+                <span class="text-gray-300 font-mono">Elements</span>
+            </div>
+        </div>
         <div class="flex items-center gap-3">
             {{ if .ClientDir }}
             <button onclick="openClientModal()" 

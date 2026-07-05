@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/Pepegakac123/photo-etl/internal/generator"
 	"github.com/Pepegakac123/photo-etl/internal/stock"
@@ -19,6 +20,28 @@ func maskKey(key string) string {
 		return "..."
 	}
 	return key[len(key)-6:]
+}
+
+func parseEnvatoCookies(cookiesStr string) (string, string) {
+	var session4, session5 string
+	parts := strings.Split(cookiesStr, ";")
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		eqIdx := strings.Index(part, "=")
+		if eqIdx != -1 {
+			name := part[:eqIdx]
+			val := part[eqIdx+1:]
+			if strings.Contains(name, "session_4") {
+				session4 = val
+			} else if strings.Contains(name, "session.5") || strings.Contains(name, "session_5") {
+				session5 = val
+			}
+		}
+	}
+	return session4, session5
 }
 
 func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
@@ -35,6 +58,8 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	session4, session5 := parseEnvatoCookies(s.cfg.EnvatoElementsCookies)
+
 	data := map[string]interface{}{
 		"Config":                s.cfg,
 		"MaskedOpenAIKey":       maskKey(s.cfg.OpenAIApiKey),
@@ -46,6 +71,8 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		"DefaultExportDir":      s.getExportDir(),
 		"Costs":                 costs,
 		"TotalCosts":            totalCosts,
+		"EnvatoSession4":        session4,
+		"EnvatoSession5":        session5,
 	}
 
 	err = s.tmpl.ExecuteTemplate(w, "settings", data)
@@ -210,7 +237,21 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 	openaiApiKey := r.FormValue("openai_api_key")
 	aiVisionModel := r.FormValue("ai_vision_model")
 	envatoApiToken := r.FormValue("envato_api_token")
-	envatoElementsCookies := r.FormValue("envato_elements_cookies")
+	cookieName1 := r.FormValue("envato_cookie_name_1")
+	cookieVal1 := r.FormValue("envato_cookie_val_1")
+	cookieName2 := r.FormValue("envato_cookie_name_2")
+	cookieVal2 := r.FormValue("envato_cookie_val_2")
+
+	envatoElementsCookies := ""
+	if cookieName1 != "" && cookieVal1 != "" {
+		envatoElementsCookies = fmt.Sprintf("%s=%s", cookieName1, cookieVal1)
+	}
+	if cookieName2 != "" && cookieVal2 != "" {
+		if envatoElementsCookies != "" {
+			envatoElementsCookies += "; "
+		}
+		envatoElementsCookies += fmt.Sprintf("%s=%s", cookieName2, cookieVal2)
+	}
 	unsplashAccessKey := r.FormValue("unsplash_access_key")
 	nanoBananaKey := r.FormValue("nano_banana_key")
 	imageGenPrompt := r.FormValue("image_generation_base_prompt")

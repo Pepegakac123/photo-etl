@@ -3,6 +3,7 @@ package ui
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"html"
 	"html/template"
@@ -153,6 +154,8 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("POST /services/{id}/prompt/enhance", s.handleEnhancePrompt)
 	s.mux.HandleFunc("POST /photos/{id}/approve", s.handleApprovePhoto)
 	s.mux.HandleFunc("POST /photos/{id}/reject", s.handleRejectPhoto)
+	s.mux.HandleFunc("POST /photos/{id}/associate", s.handleAssociatePhoto)
+	s.mux.HandleFunc("POST /photos/{id}/inpaint", s.handleInpaintPhoto)
 	s.mux.HandleFunc("POST /photos/add", s.handleAddPhoto)
 	s.mux.HandleFunc("GET /local-media", s.handleLocalMedia)
 	s.mux.HandleFunc("POST /export", s.handleExport)
@@ -479,6 +482,7 @@ func (s *Server) handleWorkspace(w http.ResponseWriter, r *http.Request) {
 		translatedName = tName
 	}
 
+	services, _ := s.getSidebarData(ctx)
 	data := map[string]interface{}{
 		"Service":       svc,
 		"Photos":        activePhotos,
@@ -486,6 +490,7 @@ func (s *Server) handleWorkspace(w http.ResponseWriter, r *http.Request) {
 		"RequiredCount": s.cfg.TargetPhotosPerService,
 		"PendingCount":  pendingCount,
 		"EnglishName":   translatedName,
+		"Services":      services,
 	}
 
 	err = s.tmpl.ExecuteTemplate(w, "workspace", data)
@@ -546,12 +551,14 @@ func (s *Server) handleWorkspaceUpdate(w http.ResponseWriter, r *http.Request, s
 		}
 	}
 
+	services, _ := s.getSidebarData(ctx)
 	data := map[string]interface{}{
 		"Service":       svc,
 		"Photos":        activePhotos,
 		"ApprovedCount": approvedCount,
 		"RequiredCount": s.cfg.TargetPhotosPerService,
 		"PendingCount":  pendingCount,
+		"Services":      services,
 	}
 
 	w.Header().Set("Content-Type", "text/html")
@@ -1072,6 +1079,7 @@ func (s *Server) handleEnhancePrompt(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	escapedPrompt := html.EscapeString(enhancedPrompt)
 	textareaHTML := fmt.Sprintf(`
 		<textarea id="custom_prompt" name="custom_prompt" rows="3" 
@@ -1085,23 +1093,74 @@ func (s *Server) generateEnhancedPrompt(ctx context.Context, serviceName, contex
 	systemPrompt := `Jesteś ekspertem od promptowania modeli generowania obrazów (takich jak Imagen/Midjourney/Gemini).
 Twoim zadaniem jest przekształcić podaną nazwę usługi budowlano-remontowej oraz jej kontekst w szczegółowy, kreatywny i zróżnicowany prompt w języku angielskim.
 
-BARDZO WAŻNE WYTYCZNE DOTYCZĄCE LUDZI I KOMPOZYCJI:
-- Nie pokazuj całych postaci pracowników ani ich twarzy! Zamiast tego skup się na zbliżeniach (close-ups) na materiały, narzędzia lub wykonywaną pracę.
-- Jeśli w ogóle pokazujesz człowieka, mogą to być wyłącznie części ciała (np. dłonie trzymające narzędzie, ręce układające dachówkę, buty stojące na rusztowaniu). Żadnych twarzy, żadnych pełnych sylwetek.
+BARDZO WAŻNE WYTYCZNE DOTYCZĄCE LUDZI, TEKSTÓW I KOMPOZYCJI:
+- CAŁKOWITY ZAKAZ pokazywania twarzy lub pracowników od frontu. Pracownicy nie mogą być widoczni z przodu. Lepiej w ogóle nie pokazywać sylwetek, tylko skupić się na zbliżeniach (close-ups) na materiały, narzędzia, wykonywane czynności.
+- Jeśli w ogóle pokazujesz człowieka, mogą to być wyłącznie dłonie, przedramiona lub plecy (np. dłonie trzymające kielnię, ręce układające rurę). Żadnych pełnych sylwetek od przodu.
+- CAŁKOWITY ZAKAZ umieszczania jakichkolwiek napisów, tekstów, logo lub znaków firmowych (np. na ubraniach roboczych, pojazdach, narzędziach, skrzynkach). Wszystkie obiekty i odzież muszą być czyste, bez żadnych logotypów ani napisów.
 - Zdjęcie powinno wyglądać jak profesjonalne zdjęcie stockowe lub autentyczne zbliżenie zrobione na placu budowy w Niemczech.
 
-Zadbaj o to, by każda wygenerowana scena była unikalna, dodając losowe kreatywne elementy (np. różne warunki oświetleniowe, kąty kamery, detale materiałowe, kolory).
 Zwróć TYLKO i wyłącznie gotowy, czysty prompt w języku angielskim (maksymalnie 3-4 zdania). Nie dodawaj cudzysłowów ani żadnych słów wstępnych.`
 
 	fullPrompt := fmt.Sprintf("%s\n\nNazwa usługi: %s\nKontekst: %s", systemPrompt, serviceName, contextDesc)
 
-	// Use gemini-2.5-flash-lite via the Banana client (Interactions API)
-	enhancedPrompt, err := s.bananaClient.GenerateText(ctx, "gemini-2.5-flash-lite", fullPrompt)
+	// Use gemini-3.1-flash-lite via the Banana client (Interactions API)
+	enhancedPrompt, err := s.bananaClient.GenerateText(ctx, "gemini-3.1-flash-lite", fullPrompt)
 	if err != nil {
 		return "", err
 	}
 
 	return strings.TrimSpace(enhancedPrompt), nil
+}
+
+func (s *Server) generateMultiEnhancedPrompts(ctx context.Context, serviceName, generalPrompt string, count int) ([]string, error) {
+	systemPrompt := fmt.Sprintf(`You are an expert prompt engineer for AI image generators (such as Imagen or Midjourney).
+We need to generate %d distinct, realistic, high-quality stock photo prompts in English for a construction/renovation service called: "%s".
+General context or idea from the user: "%s"
+
+Your goal is to output exactly %d different prompt ideas. Each prompt must describe a completely different scene, perspective, focus, or stage of the work to ensure a high variety of images.
+
+CRITICAL RULES FOR ALL GENERATED PROMPTS:
+1. NO FACES, NO FULL BODIES, NO WORKERS FROM THE FRONT. Only show hands, arms, feet, or backs of workers if showing a person at all. Focus heavily on close-ups of the tools, materials, textures, and the work being done.
+2. NO TEXT, NO LOGOS, NO WRITING, NO BRAND NAMES anywhere in the image.
+3. Realistic, raw construction site aesthetic.
+4. Do NOT output any intro or outro text. Return the prompts as a clean JSON array of strings.
+
+Example JSON output format for count = 3:
+[
+  "A detailed close-up shot of a worker's gloved hands precisely laying a red ceramic roof tile on wooden battens, focusing on the texture of the clay, bright daylight.",
+  "An over-the-shoulder view of a worker installing metal flashing around a brick chimney on a sloped roof, focus on the tools and slate tiles under natural overcast sky.",
+  "A low angle shot showing roof rafters under construction, with bundles of tiles waiting to be installed, clear blue sky in the background, sharp focus on raw wood grain."
+]`, count, serviceName, generalPrompt, count)
+
+	response, err := s.bananaClient.GenerateText(ctx, "gemini-3.1-flash-lite", systemPrompt)
+	if err != nil {
+		return nil, err
+	}
+
+	cleaned := strings.TrimSpace(response)
+	if idx := strings.Index(cleaned, "["); idx != -1 {
+		if lastIdx := strings.LastIndex(cleaned, "]"); lastIdx != -1 && lastIdx > idx {
+			cleaned = cleaned[idx : lastIdx+1]
+		}
+	}
+
+	var prompts []string
+	if err := json.Unmarshal([]byte(cleaned), &prompts); err != nil {
+		log.Printf("Failed to unmarshal JSON prompts: %v, attempting line split fallback", err)
+		lines := strings.Split(cleaned, "\n")
+		for _, line := range lines {
+			line = strings.Trim(line, " \t\r\n[],\"'")
+			if line != "" {
+				prompts = append(prompts, line)
+			}
+		}
+	}
+
+	// Truncate or pad to exactly count
+	if len(prompts) > count {
+		prompts = prompts[:count]
+	}
+	return prompts, nil
 }
 
 func (s *Server) handleGenerateImage(w http.ResponseWriter, r *http.Request) {
@@ -1154,13 +1213,25 @@ func (s *Server) handleGenerateImage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Generate distinct prompts if count > 1 to ensure image variety
+	var prompts []string
+	if count > 1 && s.cfg.NanoBananaKey != "" {
+		var err error
+		prompts, err = s.generateMultiEnhancedPrompts(ctx, svc.Name, desc, count)
+		if err != nil {
+			log.Printf("Failed to generate multi-enhanced prompts: %v, falling back to single prompt", err)
+			prompts = nil
+		}
+	}
+
 	// Output generated file to a temporary directory in workspace
 	tempDir := filepath.Join(s.clientDir, ".temp")
 	_ = os.MkdirAll(tempDir, 0755)
 
 	type genResult struct {
-		Path string
-		Err  error
+		Path   string
+		Prompt string
+		Err    error
 	}
 
 	resChan := make(chan genResult, count)
@@ -1170,23 +1241,34 @@ func (s *Server) handleGenerateImage(w http.ResponseWriter, r *http.Request) {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
+
+			itemDesc := desc
+			if len(prompts) > idx {
+				itemDesc = prompts[idx]
+			}
+
 			filename := fmt.Sprintf("generated_%d_%d_%d.png", id, os.Getpid(), idx)
 			outputPath := filepath.Join(tempDir, filename)
-			err := s.bananaClient.GenerateImage(ctx, svc.Name, "Niemcy", desc, model, imageSize, outputPath)
-			resChan <- genResult{Path: outputPath, Err: err}
+			err := s.bananaClient.GenerateImage(ctx, svc.Name, "Niemcy", itemDesc, model, imageSize, outputPath)
+			resChan <- genResult{Path: outputPath, Prompt: itemDesc, Err: err}
 		}(i)
 	}
 
 	wg.Wait()
 	close(resChan)
 
-	var generatedPaths []string
+	type AIGenItem struct {
+		Path   string
+		Prompt string
+	}
+
+	var results []AIGenItem
 	var genErrors []error
 	for res := range resChan {
 		if res.Err != nil {
 			genErrors = append(genErrors, res.Err)
 		} else {
-			generatedPaths = append(generatedPaths, res.Path)
+			results = append(results, AIGenItem{Path: res.Path, Prompt: res.Prompt})
 
 			// Log cost of image generation based on selected model
 			var cost float64
@@ -1203,13 +1285,13 @@ func (s *Server) handleGenerateImage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var errStr string
-	if len(generatedPaths) == 0 && len(genErrors) > 0 {
+	if len(results) == 0 && len(genErrors) > 0 {
 		errStr = genErrors[0].Error()
 	}
 
 	data := map[string]interface{}{
 		"ServiceID":     id,
-		"FilePaths":     generatedPaths,
+		"Results":       results,
 		"Error":         errStr,
 		"RequiredCount": s.cfg.TargetPhotosPerService,
 	}
@@ -1326,6 +1408,134 @@ func (s *Server) handleAddPhoto(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.handleWorkspaceUpdate(w, r, serviceID)
+}
+
+func (s *Server) handleAssociatePhoto(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	photoIDStr := r.PathValue("id")
+	photoID, err := strconv.ParseInt(photoIDStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid photo ID", http.StatusBadRequest)
+		return
+	}
+
+	err = r.ParseForm()
+	if err != nil {
+		http.Error(w, "Failed to parse form", http.StatusBadRequest)
+		return
+	}
+
+	currentServiceIDStr := r.FormValue("current_service_id")
+	currentServiceID, err := strconv.ParseInt(currentServiceIDStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid current service ID", http.StatusBadRequest)
+		return
+	}
+
+	serviceIDsStr := r.Form["service_ids"]
+	var targetServiceIDs []int64
+	for _, idStr := range serviceIDsStr {
+		if id, err := strconv.ParseInt(idStr, 10, 64); err == nil {
+			targetServiceIDs = append(targetServiceIDs, id)
+		}
+	}
+
+	// Fetch the source photo to clone
+	photo, err := s.db.GetPhoto(ctx, photoID)
+	if err != nil {
+		http.Error(w, "Photo not found", http.StatusNotFound)
+		return
+	}
+
+	// For each target service ID, associate (create a clone or new record)
+	for _, targetSvcID := range targetServiceIDs {
+		// Check if photo is already associated with this target service to avoid duplicates
+		exists, err := s.db.PhotoExistsForService(ctx, targetSvcID, photo.FilePath)
+		if err == nil && exists {
+			continue
+		}
+
+		_, err = s.db.CreatePhotoWithTitle(ctx, targetSvcID, photo.FilePath, photo.Source, "approved", photo.Title)
+		if err != nil {
+			log.Printf("Failed to associate photo %d to service %d: %v", photoID, targetSvcID, err)
+		}
+	}
+
+	w.Header().Set("Content-Type", "text/html")
+	s.handleWorkspaceUpdate(w, r, currentServiceID)
+
+	// Additionally render the OOB sidebar updates for all target services that were updated
+	for _, targetSvcID := range targetServiceIDs {
+		progress, err := s.getSingleServiceProgress(ctx, targetSvcID)
+		if err == nil {
+			progress.Oob = true
+			_ = s.tmpl.ExecuteTemplate(w, "sidebar_button", progress)
+		}
+	}
+
+	w.Write([]byte(fmt.Sprintf(`<script>showToast("Przypisano zdjęcie do %d innych usług.", "success");</script>`, len(targetServiceIDs))))
+}
+
+func (s *Server) handleInpaintPhoto(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	photoIDStr := r.PathValue("id")
+	photoID, err := strconv.ParseInt(photoIDStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid photo ID", http.StatusBadRequest)
+		return
+	}
+
+	err = r.ParseForm()
+	if err != nil {
+		http.Error(w, "Failed to parse form", http.StatusBadRequest)
+		return
+	}
+
+	inpaintPrompt := r.FormValue("inpaint_prompt")
+	if inpaintPrompt == "" {
+		http.Error(w, "Inpaint prompt is empty", http.StatusBadRequest)
+		return
+	}
+
+	photo, err := s.db.GetPhoto(ctx, photoID)
+	if err != nil {
+		http.Error(w, "Photo not found", http.StatusNotFound)
+		return
+	}
+
+	if _, err := os.Stat(photo.FilePath); err != nil {
+		http.Error(w, fmt.Sprintf("Photo file does not exist locally: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	dir := filepath.Dir(photo.FilePath)
+	ext := filepath.Ext(photo.FilePath)
+	base := strings.TrimSuffix(filepath.Base(photo.FilePath), ext)
+	newFilename := fmt.Sprintf("%s_edited_%d%s", base, os.Getpid(), ext)
+	newPath := filepath.Join(dir, newFilename)
+
+	reinforcedPrompt := fmt.Sprintf(
+		"%s. IMPORTANT: Follow these guidelines strictly: DO NOT generate any human faces or workers visible from the front. DO NOT include any text, writing, numbers, or logos anywhere in the image. Keep the realistic, raw style of the original photo.",
+		inpaintPrompt,
+	)
+
+	err = s.bananaClient.EditImage(ctx, photo.FilePath, reinforcedPrompt, "gemini-3.1-flash-image", "1K", newPath)
+	if err != nil {
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte(fmt.Sprintf(`<script>showToast("Błąd edycji AI: %v", "error"); hideGlobalIndicator();</script>`, err)))
+		return
+	}
+
+	err = s.db.UpdatePhotoPathAndTitle(ctx, photoID, newPath, fmt.Sprintf("AI Edit: %s", inpaintPrompt))
+	if err != nil {
+		log.Printf("Failed to update photo path in database: %v", err)
+	}
+
+	_ = s.db.LogCost(ctx, "AI Edit", "image_generation", "gemini-3.1-flash-image", 0, 0, 0.067)
+
+	w.Header().Set("Content-Type", "text/html")
+	s.handleWorkspaceUpdate(w, r, photo.ServiceID)
+	w.Write([]byte(`<script>showToast("Zdjęcie zmodyfikowane pomyślnie!", "success"); hideGlobalIndicator();</script>`))
 }
 
 func (s *Server) handleLocalMedia(w http.ResponseWriter, r *http.Request) {

@@ -328,6 +328,20 @@
             list.scrollTop = window.savedPhotosScrollTop;
         }
     });
+
+    function toggleAssociatePopup(photoId) {
+        const popup = document.getElementById('associate-popup-' + photoId);
+        if (popup) {
+            popup.classList.toggle('hidden');
+        }
+    }
+
+    function toggleInpaintPopup(photoId) {
+        const popup = document.getElementById('inpaint-popup-' + photoId);
+        if (popup) {
+            popup.classList.toggle('hidden');
+        }
+    }
 </script>
 {{ end }}
 
@@ -411,15 +425,94 @@
             <div class="aspect-video w-full relative bg-black overflow-hidden">
                 <img src="{{ if hasPrefix .FilePath "http" }}{{ .FilePath }}{{ else }}/local-media?path={{ urlEscape .FilePath }}{{ end }}" alt="Photo" class="object-cover w-full h-full">
                 <!-- Source Badge -->
-                <span class="absolute top-2 left-2 px-2 py-0.5 text-[10px] font-bold rounded bg-black/60 backdrop-blur-sm text-indigo-300 border border-indigo-500/20">
+                <span class="absolute top-2 left-2 px-2 py-0.5 text-[10px] font-bold rounded bg-black/60 backdrop-blur-sm text-indigo-300 border border-indigo-500/20 z-10">
                     {{ .Source }}
                 </span>
                 <!-- Status Badge -->
-                <span class="absolute top-2 right-2 px-2 py-0.5 text-[10px] font-bold rounded backdrop-blur-sm {{ if eq .Status "approved" }} bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 {{ else }} bg-amber-500/20 text-amber-400 border border-amber-500/30 {{ end }}">
+                <span class="absolute top-2 right-2 px-2 py-0.5 text-[10px] font-bold rounded backdrop-blur-sm {{ if eq .Status "approved" }} bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 {{ else }} bg-amber-500/20 text-amber-400 border border-amber-500/30 {{ end }} z-10">
                     {{ .Status }}
                 </span>
+
+                <!-- Multi-Service Association Toggle Button (Visible on hover) -->
+                <button onclick="toggleAssociatePopup('{{ .ID }}')" 
+                        class="absolute bottom-2 right-2 p-1.5 bg-indigo-600/80 hover:bg-indigo-600 text-white rounded-lg opacity-0 group-hover:opacity-100 transition duration-150 border border-indigo-500/30 z-20"
+                        title="Przypisz również do innych usług">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 10.742l-2.777 2.22A2 2 0 007.137 16H11v3.018c0 .774.824 1.254 1.485.857l2.846-1.708A2 2 0 0016 16.518V16h1.863a2 2 0 001.23-.422l2.777-2.22A2 2 0 0021 11.758V10a2 2 0 00-2-2h-3.863a2 2 0 00-1.23.422L11 10.742V8.018c0-.774-.824-1.254-1.485-.857L6.67 8.87A2 2 0 006 10.518V11h2.684z"></path>
+                    </svg>
+                </button>
+
+                <!-- AI Inpainting Toggle Button (Visible on hover if source is AI) -->
+                {{ if eq .Source "AI" }}
+                <button onclick="toggleInpaintPopup('{{ .ID }}')" 
+                        class="absolute bottom-2 left-2 p-1.5 bg-violet-600/80 hover:bg-violet-600 text-white rounded-lg opacity-0 group-hover:opacity-100 transition duration-150 border border-violet-500/30 z-20"
+                        title="Edytuj zdjęcie za pomocą AI (Inpainting)">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
+                    </svg>
+                </button>
+
+                <!-- AI Inpainting Popup Overlay -->
+                <div id="inpaint-popup-{{ .ID }}" class="hidden absolute inset-0 bg-[#0A0F1D]/95 backdrop-blur-sm p-3 z-30 flex flex-col justify-between">
+                    <div class="flex items-center justify-between border-b border-[#23314B]/60 pb-1.5 shrink-0">
+                        <span class="text-[10px] font-bold text-gray-300 uppercase tracking-wider">Edycja AI (Inpainting)</span>
+                        <button onclick="toggleInpaintPopup('{{ .ID }}')" class="text-gray-500 hover:text-gray-300">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
+                    </div>
+
+                    <form hx-post="/photos/{{ .ID }}/inpaint"
+                          hx-target="#project-photos-container"
+                          class="flex-1 flex flex-col justify-between mt-2">
+                        <div class="space-y-1">
+                            <label for="inpaint_prompt_{{ .ID }}" class="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Modyfikacja obrazka:</label>
+                            <textarea id="inpaint_prompt_{{ .ID }}" name="inpaint_prompt" rows="2" 
+                                      placeholder="np. change only the blue sofa to brown leather"
+                                      class="w-full bg-[#0E1524] border border-[#23314B] rounded-lg px-2 py-1 text-[10px] text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 transition font-sans resize-none"></textarea>
+                        </div>
+                        <button type="submit" 
+                                onclick="toggleInpaintPopup('{{ .ID }}'); showGlobalIndicator();"
+                                class="w-full py-1 bg-violet-600 hover:bg-violet-500 text-white font-bold text-[10px] uppercase tracking-wider rounded transition active:scale-[0.98]">
+                            Modyfikuj obrazek
+                        </button>
+                    </form>
+                </div>
+                {{ end }}
+
+                <!-- Multi-Service Association Popup Overlay -->
+                <div id="associate-popup-{{ .ID }}" class="hidden absolute inset-0 bg-[#0A0F1D]/95 backdrop-blur-sm p-3 z-30 flex flex-col justify-between">
+                    <div class="flex items-center justify-between border-b border-[#23314B]/60 pb-1.5 shrink-0">
+                        <span class="text-[10px] font-bold text-gray-300 uppercase tracking-wider">Dodaj do innych usług</span>
+                        <button onclick="toggleAssociatePopup('{{ .ID }}')" class="text-gray-500 hover:text-gray-300">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
+                    </div>
+
+                    <!-- Services Checkbox List -->
+                    <form hx-post="/photos/{{ .ID }}/associate"
+                          hx-target="#project-photos-container"
+                          class="flex-1 min-h-0 flex flex-col mt-2">
+                        <input type="hidden" name="current_service_id" value="{{ $.Service.ID }}">
+                        <div class="flex-1 overflow-y-auto space-y-1.5 pr-1 max-h-[85px] scrollbar-thin">
+                            {{ $photo := . }}
+                            {{ range $.Services }}
+                                {{ if ne .ServiceID $.Service.ID }}
+                                <label class="flex items-center gap-2 px-2 py-1 hover:bg-[#161F30] rounded cursor-pointer select-none text-[10px] text-gray-300 min-w-0">
+                                    <input type="checkbox" name="service_ids" value="{{ .ServiceID }}" class="rounded border-gray-600 text-indigo-600 focus:ring-0 cursor-pointer">
+                                    <span class="truncate min-w-0" title="{{ .ServiceName }}">{{ .ServiceName }}</span>
+                                </label>
+                                {{ end }}
+                            {{ end }}
+                        </div>
+                        <button type="submit" 
+                                onclick="toggleAssociatePopup('{{ $photo.ID }}')"
+                                class="mt-2 w-full py-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[10px] uppercase tracking-wider rounded transition active:scale-[0.98]">
+                            Zapisz powiązania
+                        </button>
+                    </form>
+                </div>
             </div>
-            <div class="p-3 flex items-center justify-between gap-2 bg-[#0E1524] mt-auto">
+            <div class="p-3 flex items-center justify-between gap-2 bg-[#0E1524] mt-auto border-t border-[#23314B]/30">
                 <div class="min-w-0 flex-1">
                     <p class="text-[10px] text-gray-400 truncate" title="{{ .FilePath }}">{{ baseName .FilePath }}</p>
                 </div>

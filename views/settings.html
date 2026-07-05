@@ -94,15 +94,37 @@
                                class="w-full px-3 py-2 bg-[#0A0F1A] border border-[#23314B] focus:border-indigo-500 text-xs text-white rounded-lg focus:outline-none font-mono">
                     </div>
 
-                    <div class="space-y-1.5 md:col-span-2">
-                        <label for="envato_elements_cookies" class="text-xs font-bold text-gray-400 uppercase tracking-wider">Envato Elements Cookies (SSO / Session Cookies)</label>
-                        <textarea id="envato_elements_cookies" name="envato_elements_cookies" rows="3"
-                                  placeholder="Wklej tutaj ciasteczka sesyjne z elements.envato.com (np. envatoid=...; elements.session.5=...;)"
-                                  class="w-full px-3 py-2 bg-[#0A0F1A] border border-[#23314B] focus:border-indigo-500 text-xs text-white rounded-lg focus:outline-none font-mono">{{ .Config.EnvatoElementsCookies }}</textarea>
+                    <div class="space-y-4 md:col-span-2">
+                        <label class="text-xs font-bold text-gray-400 uppercase tracking-wider block">Ciasteczka Sesyjne Envato Elements</label>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-[#0A0F1A]/40 border border-[#23314B]/60 p-4 rounded-xl">
+                            <!-- Cookie 1 -->
+                            <div class="space-y-1.5">
+                                <div class="flex items-center justify-between">
+                                    <label for="envato_session_4" class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Nazwa ciasteczka 1</label>
+                                    <input type="text" name="envato_cookie_name_1" value="_elements_session_4" class="bg-transparent border-0 p-0 text-[10px] text-indigo-400 font-semibold text-right focus:ring-0 outline-none w-32 cursor-pointer hover:underline" title="Kliknij, aby zmienić nazwę ciasteczka jeśli się różni">
+                                </div>
+                                <input type="password" id="envato_session_4" name="envato_cookie_val_1" value="{{ .EnvatoSession4 }}"
+                                       placeholder="Wklej wartość ciasteczka _elements_session_4"
+                                       class="w-full px-3 py-2 bg-[#0A0F1A] border border-[#23314B] focus:border-indigo-500 text-xs text-white rounded-lg focus:outline-none font-mono">
+                            </div>
+
+                            <!-- Cookie 2 -->
+                            <div class="space-y-1.5">
+                                <div class="flex items-center justify-between">
+                                    <label for="envato_session_5" class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Nazwa ciasteczka 2</label>
+                                    <input type="text" name="envato_cookie_name_2" value="elements.session.5" class="bg-transparent border-0 p-0 text-[10px] text-indigo-400 font-semibold text-right focus:ring-0 outline-none w-32 cursor-pointer hover:underline" title="Kliknij, aby zmienić nazwę ciasteczka jeśli się różni">
+                                </div>
+                                <input type="password" id="envato_session_5" name="envato_cookie_val_2" value="{{ .EnvatoSession5 }}"
+                                       placeholder="Wklej wartość ciasteczka elements.session.5"
+                                       class="w-full px-3 py-2 bg-[#0A0F1A] border border-[#23314B] focus:border-indigo-500 text-xs text-white rounded-lg focus:outline-none font-mono">
+                            </div>
+                        </div>
+
                         <p class="text-[11px] text-gray-400 leading-relaxed mt-1 select-none">
                             <strong>Instrukcja:</strong> Aby uniknąć przekierowania na <code>app.envato.com</code>, otwórz bezpośredni link szczegółów: 
                             <a href="https://elements.envato.com/pl/bathroom-designed-with-elegance-PVJSZNU" target="_blank" class="text-indigo-400 hover:text-indigo-300 font-semibold underline">Otwórz stronę zdjęcia w nowej karcie</a>.<br>
-                            Następnie naciśnij <code>F12</code> (Zbadaj) -> zakładka <strong>Application / Aplikacja</strong> -> w menu po lewej rozwiń <strong>Cookies</strong> -> kliknij na <strong><code>https://elements.envato.com</code></strong> i skopiuj ciasteczka <code>_elements_session_4</code> oraz <code>elements.session.5</code>, po czym wklej je powyżej.
+                            Następnie naciśnij <code>F12</code> (Zbadaj) -> zakładka <strong>Application / Aplikacja</strong> -> w menu po lewej rozwiń <strong>Cookies</strong> -> kliknij na <strong><code>https://elements.envato.com</code></strong> i skopiuj wartości ciasteczek <code>_elements_session_4</code> oraz <code>elements.session.5</code>, po czym wklej je powyżej.
                         </p>
                     </div>
                 </div>

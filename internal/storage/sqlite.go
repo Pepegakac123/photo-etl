@@ -231,6 +231,15 @@ func (d *DB) UpdatePhotoStatus(ctx context.Context, id int64, status string) err
 	return nil
 }
 
+// UpdatePhotoPathAndTitle updates the file path and title of a photo.
+func (d *DB) UpdatePhotoPathAndTitle(ctx context.Context, id int64, filePath string, title string) error {
+	_, err := d.db.ExecContext(ctx, "UPDATE photos SET file_path = ?, title = ? WHERE id = ?", filePath, title, id)
+	if err != nil {
+		return fmt.Errorf("failed to update photo path and title %d: %w", id, err)
+	}
+	return nil
+}
+
 type ServiceProgress struct {
 	ServiceID         int64
 	ServiceName       string
