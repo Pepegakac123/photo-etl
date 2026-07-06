@@ -416,8 +416,34 @@ func ScrapePhotos(ctx context.Context, targetURL string, outputDir string, fbCUs
 
 		// Find image sources
 		seen := make(map[string]bool)
-		
-		// Match <img> src
+
+		cleanWixURL := func(rawURL string) string {
+			if strings.Contains(rawURL, "static.wixstatic.com/media/") {
+				if idx := strings.Index(rawURL, "/v1/"); idx != -1 {
+					rawURL = rawURL[:idx]
+				}
+				if idx := strings.Index(rawURL, "?"); idx != -1 {
+					rawURL = rawURL[:idx]
+				}
+				if idx := strings.Index(rawURL, "#"); idx != -1 {
+					rawURL = rawURL[:idx]
+				}
+			}
+			return rawURL
+		}
+
+		// 1. Direct Regex Search for Wixstatic Media (highly robust for Wix sites like Wix galleries)
+		reWix := regexp.MustCompile(`https?://static\.wixstatic\.com/media/[^"'\s>\)]+`)
+		wixMatches := reWix.FindAllString(dom, -1)
+		for _, m := range wixMatches {
+			cleanURL := cleanWixURL(m)
+			if !seen[cleanURL] {
+				seen[cleanURL] = true
+				imageUrls = append(imageUrls, cleanURL)
+			}
+		}
+
+		// 2. Match <img> src
 		reImg := regexp.MustCompile(`(?i)<img\s+[^>]*src=["']([^"']+)["']`)
 		matchesImg := reImg.FindAllStringSubmatch(dom, -1)
 		for _, m := range matchesImg {
@@ -425,7 +451,7 @@ func ScrapePhotos(ctx context.Context, targetURL string, outputDir string, fbCUs
 			if ref != "" {
 				u, err := base.Parse(ref)
 				if err == nil {
-					fullURL := u.String()
+					fullURL := cleanWixURL(u.String())
 					if !seen[fullURL] {
 						seen[fullURL] = true
 						imageUrls = append(imageUrls, fullURL)
@@ -434,7 +460,7 @@ func ScrapePhotos(ctx context.Context, targetURL string, outputDir string, fbCUs
 			}
 		}
 
-		// Match <img> data-src
+		// 3. Match <img> data-src
 		reDataSrc := regexp.MustCompile(`(?i)<img\s+[^>]*data-src=["']([^"']+)["']`)
 		matchesDataSrc := reDataSrc.FindAllStringSubmatch(dom, -1)
 		for _, m := range matchesDataSrc {
@@ -442,7 +468,7 @@ func ScrapePhotos(ctx context.Context, targetURL string, outputDir string, fbCUs
 			if ref != "" {
 				u, err := base.Parse(ref)
 				if err == nil {
-					fullURL := u.String()
+					fullURL := cleanWixURL(u.String())
 					if !seen[fullURL] {
 						seen[fullURL] = true
 						imageUrls = append(imageUrls, fullURL)
@@ -451,7 +477,7 @@ func ScrapePhotos(ctx context.Context, targetURL string, outputDir string, fbCUs
 			}
 		}
 
-		// Match <a> href link to image
+		// 4. Match <a> href link to image
 		reLink := regexp.MustCompile(`(?i)<a\s+[^>]*href=["']([^"']+\.(jpe?g|png|webp))["']`)
 		matchesLink := reLink.FindAllStringSubmatch(dom, -1)
 		for _, m := range matchesLink {
@@ -459,7 +485,7 @@ func ScrapePhotos(ctx context.Context, targetURL string, outputDir string, fbCUs
 			if ref != "" {
 				u, err := base.Parse(ref)
 				if err == nil {
-					fullURL := u.String()
+					fullURL := cleanWixURL(u.String())
 					if !seen[fullURL] {
 						seen[fullURL] = true
 						imageUrls = append(imageUrls, fullURL)

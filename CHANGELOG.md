@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.1] - 2026-07-06
+### Added
+- **High-Resolution Wix Scraper Optimization**: Added direct regex scanning for `wixstatic.com` media assets in the general website scraper. Cleans image URLs by stripping dynamic resizing parameters (`/v1/fill/...`), ensuring the app downloads original high-resolution files instead of low-resolution thumbnails, and handles de-duplication automatically.
+
 ## [1.2.0] - 2026-07-05
 ### Added
 - **Multi-Service Association for Approved Photos**: Added a button to each approved/pending photo card inside the workspace that toggles a multi-select check-list overlay of all other client services. HTMX dynamically creates the new photo associations in SQLite and sends OOB updates to instantly refresh progress counters of all updated services in the sidebar.
