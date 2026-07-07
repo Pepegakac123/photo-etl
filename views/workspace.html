@@ -200,6 +200,7 @@
                 <!-- Tab: AI Gen (Nano Banana) -->
                 <div id="tab-content-ai-gen" class="hidden space-y-6">
                     <form hx-post="/services/{{ .Service.ID }}/generate" 
+                          hx-encoding="multipart/form-data"
                           hx-target="#ai-gen-results"
                           hx-swap="beforeend"
                           hx-indicator="#ai-indicator"
@@ -236,9 +237,31 @@
                                       class="w-full bg-[#0E1524] border border-[#23314B] rounded-lg px-3.5 py-2.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 transition font-sans resize-y">{{ if .Service.ContextDescription }}{{ .Service.ContextDescription }}{{ else }}Prace remontowo-budowlane w zakresie: {{ .Service.Name }}{{ end }}</textarea>
                         </div>
 
+                        <!-- Reference Images Selection -->
+                        {{ if .Photos }}
+                        <div class="space-y-2">
+                            <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block select-none">Wzoruj się na istniejących zdjęciach (Zdjęcia Referencyjne)</label>
+                            <div class="grid grid-cols-4 gap-2 bg-[#0A0F1A]/40 border border-[#23314B]/60 p-3 rounded-xl max-h-[110px] overflow-y-auto scrollbar-thin">
+                                {{ range .Photos }}
+                                <label class="relative aspect-video rounded-lg overflow-hidden border border-[#23314B] hover:border-indigo-500/50 cursor-pointer select-none group/ref flex items-center justify-center bg-black">
+                                    <img src="{{ if hasPrefix .FilePath "http" }}{{ .FilePath }}{{ else }}/local-media?path={{ urlEscape .FilePath }}{{ end }}" class="object-cover w-full h-full opacity-60 group-hover/ref:opacity-80 transition">
+                                    <input type="checkbox" name="reference_photo_ids" value="{{ .ID }}" class="absolute top-1 right-1 rounded border-gray-600 text-indigo-600 focus:ring-0 cursor-pointer shadow-md">
+                                </label>
+                                {{ end }}
+                            </div>
+                        </div>
+                        {{ end }}
+
+                        <!-- Custom Reference Image Upload -->
+                        <div class="flex flex-col gap-1.5">
+                            <label for="custom_reference_files" class="text-[10px] font-bold text-gray-400 uppercase tracking-wider select-none">Dodaj własne zdjęcia referencyjne z dysku</label>
+                            <input type="file" id="custom_reference_files" name="reference_files" multiple accept="image/*"
+                                   class="block w-full text-xs text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[11px] file:font-semibold file:bg-[#161F30] file:text-indigo-400 hover:file:bg-[#1E2B44] cursor-pointer">
+                        </div>
+
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                             <div class="flex flex-col gap-1.5">
-                                <label for="ai_model" class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Model Generowania</label>
+                                <label for="ai_model" class="text-[10px] font-bold text-gray-400 uppercase tracking-wider select-none">Model Generowania</label>
                                 <select id="ai_model" name="model" class="bg-[#0E1524] border border-[#23314B] rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 transition font-sans">
                                     <option value="gemini-3.1-flash-lite-image" selected>Nano Banana 2 Lite (Tani)</option>
                                     <option value="gemini-3.1-flash-image">Nano Banana 2 (Zalecany)</option>
@@ -248,7 +271,7 @@
                             </div>
 
                             <div class="flex flex-col gap-1.5">
-                                <label for="ai_size" class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Rozdzielczość (Koszt)</label>
+                                <label for="ai_size" class="text-[10px] font-bold text-gray-400 uppercase tracking-wider select-none">Rozdzielczość (Koszt)</label>
                                 <select id="ai_size" name="image_size" class="bg-[#0E1524] border border-[#23314B] rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 transition font-sans">
                                     <option value="512">0.5K (512px) - Najtańszy podgląd</option>
                                     <option value="1K" selected>1K - Standardowa (Niski koszt)</option>
@@ -258,7 +281,7 @@
                             </div>
 
                             <div class="flex flex-col gap-1.5">
-                                <label for="ai_num_photos" class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Liczba Zdjęć</label>
+                                <label for="ai_num_photos" class="text-[10px] font-bold text-gray-400 uppercase tracking-wider select-none">Liczba Zdjęć</label>
                                 <select id="ai_num_photos" name="count" class="bg-[#0E1524] border border-[#23314B] rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 transition font-sans">
                                     <option value="1" selected>1 zdjęcie</option>
                                     <option value="2">2 zdjęcia</option>

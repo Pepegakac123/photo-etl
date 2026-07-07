@@ -57,7 +57,7 @@ func TestGenerateImage(t *testing.T) {
 	tmpDir := t.TempDir()
 	outputPath := filepath.Join(tmpDir, "generated.png")
 
-	err := client.GenerateImage(context.Background(), "Abbrucharbeiten", "Niemcy", "Rozbiórka starego budynku", "gemini-3.1-flash-image", "", outputPath)
+	err := client.GenerateImage(context.Background(), "Abbrucharbeiten", "Niemcy", "Rozbiórka starego budynku", "gemini-3.1-flash-image", "", outputPath, nil, nil)
 	if err != nil {
 		t.Fatalf("GenerateImage failed: %v", err)
 	}

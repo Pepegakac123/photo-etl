@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.2] - 2026-07-07
+### Added
+- **AI Image Generation with Reference Images**: Integrated reference images support into the Nano Banana generator form in workspace. Users can select existing service photos (via checkboxes on their thumbnails) or upload custom reference files from disk to guide the Gemini model's style, layout, or color palette. Files are read, parsed, base64-encoded, and passed as multi-part image inputs to the Gemini Interactions API.
+
 ## [1.2.1] - 2026-07-06
 ### Added
 - **High-Resolution Wix Scraper Optimization**: Added direct regex scanning for `wixstatic.com` media assets in the general website scraper. Cleans image URLs by stripping dynamic resizing parameters (`/v1/fill/...`), ensuring the app downloads original high-resolution files instead of low-resolution thumbnails, and handles de-duplication automatically.

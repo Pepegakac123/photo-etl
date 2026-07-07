@@ -1183,6 +1183,55 @@ func (s *Server) handleGenerateImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Parse reference images from request
+	_ = r.ParseMultipartForm(32 << 20)
+	var refImages [][]byte
+	var refMimeTypes []string
+
+	if r.MultipartForm != nil {
+		// 1. Process selected reference photo IDs from workspace
+		refPhotoIDsStr := r.MultipartForm.Value["reference_photo_ids"]
+		for _, idStr := range refPhotoIDsStr {
+			photoID, err := strconv.ParseInt(idStr, 10, 64)
+			if err == nil {
+				photo, err := s.db.GetPhoto(ctx, photoID)
+				if err == nil && photo != nil {
+					data, err := os.ReadFile(photo.FilePath)
+					if err == nil {
+						refImages = append(refImages, data)
+						mime := "image/jpeg"
+						if strings.HasSuffix(strings.ToLower(photo.FilePath), ".png") {
+							mime = "image/png"
+						} else if strings.HasSuffix(strings.ToLower(photo.FilePath), ".webp") {
+							mime = "image/webp"
+						}
+						refMimeTypes = append(refMimeTypes, mime)
+					}
+				}
+			}
+		}
+
+		// 2. Process uploaded reference files from disk
+		if r.MultipartForm.File != nil {
+			files := r.MultipartForm.File["reference_files"]
+			for _, fh := range files {
+				f, err := fh.Open()
+				if err == nil {
+					data, err := io.ReadAll(f)
+					f.Close()
+					if err == nil && len(data) > 0 {
+						refImages = append(refImages, data)
+						mime := fh.Header.Get("Content-Type")
+						if mime == "" {
+							mime = "image/jpeg"
+						}
+						refMimeTypes = append(refMimeTypes, mime)
+					}
+				}
+			}
+		}
+	}
+
 	model := r.FormValue("model")
 	if model == "" {
 		model = "gemini-3.1-flash-image"
@@ -1249,7 +1298,7 @@ func (s *Server) handleGenerateImage(w http.ResponseWriter, r *http.Request) {
 
 			filename := fmt.Sprintf("generated_%d_%d_%d.png", id, os.Getpid(), idx)
 			outputPath := filepath.Join(tempDir, filename)
-			err := s.bananaClient.GenerateImage(ctx, svc.Name, "Niemcy", itemDesc, model, imageSize, outputPath)
+			err := s.bananaClient.GenerateImage(ctx, svc.Name, "Niemcy", itemDesc, model, imageSize, outputPath, refImages, refMimeTypes)
 			resChan <- genResult{Path: outputPath, Prompt: itemDesc, Err: err}
 		}(i)
 	}

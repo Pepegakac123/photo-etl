@@ -81,8 +81,10 @@ func (c *BananaClient) TestConnection(ctx context.Context) error {
 }
 
 type contentPart struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
+	Type     string `json:"type"`
+	Text     string `json:"text,omitempty"`
+	Data     string `json:"data,omitempty"`
+	MimeType string `json:"mime_type,omitempty"`
 }
 
 type responseFormatStruct struct {
@@ -111,7 +113,7 @@ type interactionsResponse struct {
 	Steps []interactionStep `json:"steps"`
 }
 
-func (c *BananaClient) GenerateImage(ctx context.Context, serviceName, clientCountry, serviceDescription, modelName, imageSize, outputPath string) error {
+func (c *BananaClient) GenerateImage(ctx context.Context, serviceName, clientCountry, serviceDescription, modelName, imageSize, outputPath string, refImages [][]byte, refMimeTypes []string) error {
 	// If no API key is set, output a mock development image
 	if c.apiKey == "" {
 		return c.writeMockImage(outputPath)
@@ -150,14 +152,29 @@ func (c *BananaClient) GenerateImage(ctx context.Context, serviceName, clientCou
 		}
 	}
 
+	inputParts := []contentPart{
+		{
+			Type: "text",
+			Text: prompt,
+		},
+	}
+
+	for idx, imgBytes := range refImages {
+		mime := "image/jpeg"
+		if len(refMimeTypes) > idx {
+			mime = refMimeTypes[idx]
+		}
+		base64Img := base64.StdEncoding.EncodeToString(imgBytes)
+		inputParts = append(inputParts, contentPart{
+			Type:     "image",
+			Data:     base64Img,
+			MimeType: mime,
+		})
+	}
+
 	payload := interactionsRequest{
 		Model:          modelToUse,
-		Input: []contentPart{
-			{
-				Type: "text",
-				Text: prompt,
-			},
-		},
+		Input:          inputParts,
 		ResponseFormat: responseFormat,
 	}
 
