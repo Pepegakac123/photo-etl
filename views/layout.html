@@ -88,6 +88,22 @@
             </div>
         </div>
         <div class="flex items-center gap-3">
+            <!-- Global Autocomplete Photo Search -->
+            {{ if .ClientDir }}
+            <div class="relative flex items-center w-60 select-none">
+                <svg class="w-3.5 h-3.5 text-gray-500 absolute left-2.5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                <input id="global-search-input"
+                       type="text"
+                       placeholder="Szukaj zdjęcia..."
+                       hx-get="/photos/search"
+                       hx-trigger="keyup changed delay:250ms"
+                       hx-target="#global-search-results"
+                       onfocus="showSearchResults()"
+                       class="w-full bg-[#0E1524] border border-[#23314B]/80 hover:border-[#2B3B57] rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition font-sans">
+                <div id="global-search-results" class="absolute top-full right-0 w-64 mt-1.5 bg-[#0A0F1D] border border-indigo-500/30 rounded-lg shadow-2xl z-50 max-h-[280px] overflow-y-auto hidden divide-y divide-[#23314B]/40 scrollbar-thin"></div>
+            </div>
+            {{ end }}
+
             {{ if .ClientDir }}
             <button onclick="openClientModal()" 
                     class="px-3.5 py-1.5 bg-[#161F30] hover:bg-[#1E2B44] border border-[#2B3B57] text-gray-300 font-semibold rounded-lg text-xs transition duration-200 active:scale-[0.98] flex items-center justify-center gap-1.5 select-none">
@@ -408,6 +424,55 @@
         window.closeClientModal = function() {
             document.getElementById('client-modal').classList.add('hidden');
         };
+
+        window.showSearchResults = function() {
+            const results = document.getElementById('global-search-results');
+            if (results && results.innerHTML.trim() !== '') {
+                results.classList.remove('hidden');
+            }
+        };
+
+        window.goToPhoto = function(serviceId, photoId) {
+            // Find service link/button in sidebar
+            const serviceLink = document.querySelector('[hx-get="/services/' + serviceId + '/workspace"]');
+            if (serviceLink) {
+                // Register a one-time htmx load listener
+                const handler = function(evt) {
+                    if (evt.detail.target.id === 'workspace-container') {
+                        // Switch workspace to Zdjęcia tab
+                        if (typeof switchTab === 'function') {
+                            switchTab('project-photos');
+                        }
+                        
+                        // Wait a tiny bit for rendering/DOM update
+                        setTimeout(() => {
+                            const card = document.getElementById('photo-card-' + photoId);
+                            if (card) {
+                                card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                card.classList.add('ring-4', 'ring-indigo-500', 'scale-[1.02]');
+                                setTimeout(() => {
+                                    card.classList.remove('ring-4', 'ring-indigo-500', 'scale-[1.02]');
+                                }, 3000);
+                            }
+                        }, 50);
+                        document.removeEventListener('htmx:afterOnLoad', handler);
+                    }
+                };
+                document.addEventListener('htmx:afterOnLoad', handler);
+                
+                // Click the sidebar item to load the workspace
+                serviceLink.click();
+            }
+        };
+
+        // Hide search list on click outside
+        document.addEventListener('click', function(e) {
+            const results = document.getElementById('global-search-results');
+            const input = document.getElementById('global-search-input');
+            if (results && input && !results.contains(e.target) && e.target !== input) {
+                results.classList.add('hidden');
+            }
+        });
         window.showLoadingFeedback = function(form, selectName) {
             const selectEl = form.querySelector(`select[name="${selectName}"]`);
             const country = selectEl ? selectEl.value : 'PL';

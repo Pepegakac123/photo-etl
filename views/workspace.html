@@ -474,6 +474,20 @@
             showToast("Wklejono obraz ze schowka!", "success");
         }
     });
+
+    function addPhotoAsAiReference(photoId) {
+        // 1. Switch to the AI Gen tab
+        switchTab('ai-gen');
+
+        // 2. Find the checkbox inside AI Gen form
+        const checkbox = document.querySelector('input[name="reference_photo_ids"][value="' + photoId + '"]');
+        if (checkbox) {
+            checkbox.checked = true;
+            showToast("Dodano zdjęcie jako referencję dla AI!", "success");
+        } else {
+            showToast("Nie znaleziono pola wyboru referencji.", "error");
+        }
+    }
 </script>
 {{ end }}
 
@@ -565,25 +579,37 @@
                     {{ .Status }}
                 </span>
 
-                <!-- Multi-Service Association Toggle Button (Visible on hover) -->
-                <button onclick="toggleAssociatePopup('{{ .ID }}')" 
-                        class="absolute bottom-2 right-2 p-1.5 bg-indigo-600/80 hover:bg-indigo-600 text-white rounded-lg opacity-0 group-hover:opacity-100 transition duration-150 border border-indigo-500/30 z-20"
-                        title="Przypisz również do innych usług">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 10.742l-2.777 2.22A2 2 0 007.137 16H11v3.018c0 .774.824 1.254 1.485.857l2.846-1.708A2 2 0 0016 16.518V16h1.863a2 2 0 001.23-.422l2.777-2.22A2 2 0 0021 11.758V10a2 2 0 00-2-2h-3.863a2 2 0 00-1.23.422L11 10.742V8.018c0-.774-.824-1.254-1.485-.857L6.67 8.87A2 2 0 006 10.518V11h2.684z"></path>
-                    </svg>
-                </button>
+                <!-- Card Action Hover Buttons Row -->
+                <div class="absolute bottom-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition duration-150 z-20">
+                    <!-- Add as Reference Button -->
+                    <button onclick="addPhotoAsAiReference('{{ .ID }}')" 
+                            class="p-1.5 bg-emerald-600/80 hover:bg-emerald-600 text-white rounded-lg border border-emerald-500/30 transition active:scale-[0.98]"
+                            title="Użyj jako referencji w AI">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                        </svg>
+                    </button>
 
-                <!-- AI Inpainting Toggle Button (Visible on hover if source is AI) -->
-                {{ if eq .Source "AI" }}
-                <button onclick="toggleInpaintPopup('{{ .ID }}')" 
-                        class="absolute bottom-2 left-2 p-1.5 bg-violet-600/80 hover:bg-violet-600 text-white rounded-lg opacity-0 group-hover:opacity-100 transition duration-150 border border-violet-500/30 z-20"
-                        title="Edytuj zdjęcie za pomocą AI (Inpainting)">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
-                    </svg>
-                </button>
-                {{ end }}
+                    <!-- AI Inpainting Toggle Button (Only if source is AI) -->
+                    {{ if eq .Source "AI" }}
+                    <button onclick="toggleInpaintPopup('{{ .ID }}')" 
+                            class="p-1.5 bg-violet-600/80 hover:bg-violet-600 text-white rounded-lg border border-violet-500/30 transition active:scale-[0.98]"
+                            title="Edytuj zdjęcie za pomocą AI (Inpainting)">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
+                        </svg>
+                    </button>
+                    {{ end }}
+
+                    <!-- Multi-Service Association Toggle Button -->
+                    <button onclick="toggleAssociatePopup('{{ .ID }}')" 
+                            class="p-1.5 bg-indigo-600/80 hover:bg-indigo-600 text-white rounded-lg border border-indigo-500/30 transition active:scale-[0.98]"
+                            title="Przypisz również do innych usług">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 10.742l-2.777 2.22A2 2 0 007.137 16H11v3.018c0 .774.824 1.254 1.485.857l2.846-1.708A2 2 0 0016 16.518V16h1.863a2 2 0 001.23-.422l2.777-2.22A2 2 0 0021 11.758V10a2 2 0 00-2-2h-3.863a2 2 0 00-1.23.422L11 10.742V8.018c0-.774-.824-1.254-1.485-.857L6.67 8.87A2 2 0 006 10.518V11h2.684z"></path>
+                        </svg>
+                    </button>
+                </div>
             </div>
             
             <div class="p-3 flex items-center justify-between gap-2 bg-[#0E1524] mt-auto rounded-b-xl border-t border-[#23314B]/30">

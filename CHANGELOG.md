@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.6] - 2026-07-07
+### Added
+- **Global Photo Autocomplete Search**: Added a global search box in the header. Users can search for photos across all services by their filename, title, or service name. When a photo is selected from the autocomplete list, the application automatically switches to the corresponding service's workspace, activates the "Zdjęcia w Projekcie" tab, scrolls to the photo card, and highlights it with a temporary glowing animation.
+
+## [1.2.5] - 2026-07-07
+### Added
+- **Hover Quick Selector for AI Reference Images**: Added an image/picture button to the hover overlay on all project photo cards. When clicked, it switches the user to the "AI Gen" tab and automatically checks the photo's checkbox in the reference grid, allowing fast, one-click targeting of project photos for reference guidance.
+
 ## [1.2.4] - 2026-07-07
 ### Added
 - **Clipboard Image Paste Support (Ctrl+V) for AI Generator**: Added the ability to paste reference images directly from the clipboard. When the AI Gen tab is active, any image pasted (e.g. from copy-paste or screenshot tools) is intercepted, converted into a file blob, added to the reference input list, and displayed in an interactive thumbnail preview panel where individual files can be removed.

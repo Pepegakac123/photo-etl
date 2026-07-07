@@ -222,6 +222,39 @@ func (d *DB) ListPhotosByService(ctx context.Context, serviceID int64) ([]*Photo
 	return photos, nil
 }
 
+type SearchResultPhoto struct {
+	ID          int64  `json:"id"`
+	ServiceID   int64  `json:"service_id"`
+	FilePath    string `json:"file_path"`
+	Title       string `json:"title"`
+	ServiceName string `json:"service_name"`
+}
+
+// SearchPhotos queries photos and their associated services matching the query.
+func (d *DB) SearchPhotos(ctx context.Context, query string) ([]*SearchResultPhoto, error) {
+	likeQuery := "%" + query + "%"
+	rows, err := d.db.QueryContext(ctx, `
+		SELECT p.id, p.service_id, p.file_path, COALESCE(p.title, ''), s.name 
+		FROM photos p 
+		JOIN services s ON p.service_id = s.id 
+		WHERE p.file_path LIKE ? OR p.title LIKE ? OR s.name LIKE ?
+		LIMIT 15`, likeQuery, likeQuery, likeQuery)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search photos: %w", err)
+	}
+	defer rows.Close()
+
+	var results []*SearchResultPhoto
+	for rows.Next() {
+		var r SearchResultPhoto
+		if err := rows.Scan(&r.ID, &r.ServiceID, &r.FilePath, &r.Title, &r.ServiceName); err != nil {
+			return nil, fmt.Errorf("failed to scan search result row: %w", err)
+		}
+		results = append(results, &r)
+	}
+	return results, nil
+}
+
 // UpdatePhotoStatus updates a photo's status.
 func (d *DB) UpdatePhotoStatus(ctx context.Context, id int64, status string) error {
 	_, err := d.db.ExecContext(ctx, "UPDATE photos SET status = ? WHERE id = ?", status, id)

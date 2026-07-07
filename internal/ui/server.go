@@ -174,6 +174,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("GET /client/scrape-photos/stream", s.handleScrapePhotosStream)
 	s.mux.HandleFunc("POST /photos/manual-match", s.handleManualMatch)
 	s.mux.HandleFunc("POST /settings/save", s.handleSettingsSave)
+	s.mux.HandleFunc("GET /photos/search", s.handleSearchPhotos)
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -350,6 +351,33 @@ func (s *Server) handleUnmatchedPhotos(w http.ResponseWriter, r *http.Request) {
 	err = s.tmpl.ExecuteTemplate(w, "unmatched_count_oob", data)
 	if err != nil {
 		log.Printf("Template unmatched_count_oob render error: %v", err)
+	}
+}
+
+func (s *Server) handleSearchPhotos(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	query := r.URL.Query().Get("q")
+	if len(strings.TrimSpace(query)) < 2 {
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte(`<div class="p-2 text-xs text-gray-500">Wpisz min. 2 znaki...</div>`))
+		return
+	}
+
+	results, err := s.db.SearchPhotos(ctx, query)
+	if err != nil {
+		log.Printf("Failed to search photos: %v", err)
+		http.Error(w, "Failed to search photos", http.StatusInternalServerError)
+		return
+	}
+
+	data := map[string]interface{}{
+		"Results": results,
+	}
+
+	w.Header().Set("Content-Type", "text/html")
+	err = s.tmpl.ExecuteTemplate(w, "search_results.html", data)
+	if err != nil {
+		log.Printf("Template search_results render error: %v", err)
 	}
 }
 

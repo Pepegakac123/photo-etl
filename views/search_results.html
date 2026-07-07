@@ -1,0 +1,20 @@
+<div class="p-1">
+    {{ if not .Results }}
+        <div class="px-3 py-2.5 text-xs text-gray-500">Brak dopasowanych zdjęć</div>
+    {{ else }}
+        {{ range .Results }}
+            <button type="button" 
+                    onclick="goToPhoto('{{ .ServiceID }}', '{{ .ID }}'); document.getElementById('global-search-results').classList.add('hidden');" 
+                    class="w-full text-left px-3 py-2 hover:bg-[#161F30] rounded-lg transition flex items-center gap-2.5 min-w-0 active:scale-[0.99]">
+                <img src="{{ if hasPrefix .FilePath "http" }}{{ .FilePath }}{{ else }}/local-media?path={{ urlEscape .FilePath }}{{ end }}" class="w-8 h-8 object-cover rounded border border-[#23314B]/60 shrink-0">
+                <div class="min-w-0 flex-1">
+                    <p class="text-[11px] font-bold text-gray-200 truncate">{{ baseName .FilePath }}</p>
+                    <p class="text-[9px] text-indigo-400 font-semibold truncate uppercase tracking-wider">{{ .ServiceName }}</p>
+                </div>
+            </button>
+        {{ end }}
+    {{ end }}
+</div>
+<script>
+    document.getElementById('global-search-results').classList.remove('hidden');
+</script>
