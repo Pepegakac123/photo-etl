@@ -277,3 +277,9 @@
         htmx.ajax('GET', '/client/unmatched-photos', '#workspace-container');
     };
 </script>
+
+{{ define "unmatched_count_oob" }}
+<span id="unmatched-count-badge" hx-swap-oob="true" class="px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[10px] font-bold font-mono">
+    {{ .UnmatchedCount }}
+</span>
+{{ end }}

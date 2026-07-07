@@ -336,13 +336,20 @@ func (s *Server) handleUnmatchedPhotos(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := map[string]interface{}{
-		"Photos":   viewPhotos,
-		"Services": services,
+		"Photos":         viewPhotos,
+		"Services":       services,
+		"UnmatchedCount": len(photos),
 	}
 
 	err = s.tmpl.ExecuteTemplate(w, "unmatched_photos.html", data)
 	if err != nil {
 		log.Printf("Template unmatched_photos render error: %v", err)
+		return
+	}
+
+	err = s.tmpl.ExecuteTemplate(w, "unmatched_count_oob", data)
+	if err != nil {
+		log.Printf("Template unmatched_count_oob render error: %v", err)
 	}
 }
 

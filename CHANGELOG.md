@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.3] - 2026-07-07
+### Added
+- **Floating Popups & Autocomplete Search for Service Association**: Redesigned the multi-service association popup to float outside the photo card container. Increased its height (min 240px) and added a real-time autocomplete text input that filters the list of services client-side as the user types.
+### Fixed
+- **Scraper Sidebar Count Badge Sync**: Fixed a bug where downloading photos from a website or Facebook page did not update the client photos count badge in the left sidebar. Implemented an HTMX out-of-band (OOB) swap (`unmatched_count_oob`) that dynamically updates the count whenever unmatched photos are loaded or refreshed.
+
 ## [1.2.2] - 2026-07-07
 ### Added
 - **AI Image Generation with Reference Images**: Integrated reference images support into the Nano Banana generator form in workspace. Users can select existing service photos (via checkboxes on their thumbnails) or upload custom reference files from disk to guide the Gemini model's style, layout, or color palette. Files are read, parsed, base64-encoded, and passed as multi-part image inputs to the Gemini Interactions API.
