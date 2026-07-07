@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.4] - 2026-07-07
+### Added
+- **Clipboard Image Paste Support (Ctrl+V) for AI Generator**: Added the ability to paste reference images directly from the clipboard. When the AI Gen tab is active, any image pasted (e.g. from copy-paste or screenshot tools) is intercepted, converted into a file blob, added to the reference input list, and displayed in an interactive thumbnail preview panel where individual files can be removed.
+
 ## [1.2.3] - 2026-07-07
 ### Added
 - **Floating Popups & Autocomplete Search for Service Association**: Redesigned the multi-service association popup to float outside the photo card container. Increased its height (min 240px) and added a real-time autocomplete text input that filters the list of services client-side as the user types.

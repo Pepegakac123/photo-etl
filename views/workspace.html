@@ -254,9 +254,15 @@
 
                         <!-- Custom Reference Image Upload -->
                         <div class="flex flex-col gap-1.5">
-                            <label for="custom_reference_files" class="text-[10px] font-bold text-gray-400 uppercase tracking-wider select-none">Dodaj własne zdjęcia referencyjne z dysku</label>
+                            <label for="custom_reference_files" class="text-[10px] font-bold text-gray-400 uppercase tracking-wider select-none">Wgraj lub wklej (Ctrl+V) zdjęcia referencyjne</label>
                             <input type="file" id="custom_reference_files" name="reference_files" multiple accept="image/*"
+                                   onchange="updateReferencePreviews()"
                                    class="block w-full text-xs text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[11px] file:font-semibold file:bg-[#161F30] file:text-indigo-400 hover:file:bg-[#1E2B44] cursor-pointer">
+                        </div>
+
+                        <!-- Reference Images Preview Container -->
+                        <div id="reference-files-preview" class="hidden grid grid-cols-4 gap-2 bg-[#0A0F1A]/40 border border-[#23314B]/60 p-3 rounded-xl">
+                            <!-- Visual previews of uploaded/pasted files go here -->
                         </div>
 
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -382,6 +388,92 @@
             popup.classList.toggle('hidden');
         }
     }
+
+    function updateReferencePreviews() {
+        const fileInput = document.getElementById('custom_reference_files');
+        const previewContainer = document.getElementById('reference-files-preview');
+        if (!fileInput || !previewContainer) return;
+
+        previewContainer.innerHTML = '';
+        if (fileInput.files.length === 0) {
+            previewContainer.classList.add('hidden');
+            return;
+        }
+
+        previewContainer.classList.remove('hidden');
+        Array.from(fileInput.files).forEach((file, index) => {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const item = document.createElement('div');
+                item.className = 'relative aspect-video rounded-lg overflow-hidden border border-[#23314B] bg-black group/preview flex items-center justify-center';
+                
+                const img = document.createElement('img');
+                img.src = e.target.result;
+                img.className = 'object-cover w-full h-full opacity-80';
+                
+                // Remove button
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'absolute top-1 right-1 p-1 bg-rose-600/80 hover:bg-rose-600 text-white rounded transition opacity-0 group-hover/preview:opacity-100';
+                btn.innerHTML = '<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>';
+                btn.onclick = function() {
+                    removeReferenceFile(index);
+                };
+
+                item.appendChild(img);
+                item.appendChild(btn);
+                previewContainer.appendChild(item);
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    function removeReferenceFile(indexToRemove) {
+        const fileInput = document.getElementById('custom_reference_files');
+        const dataTransfer = new DataTransfer();
+        Array.from(fileInput.files).forEach((file, idx) => {
+            if (idx !== indexToRemove) {
+                dataTransfer.items.add(file);
+            }
+        });
+        fileInput.files = dataTransfer.files;
+        updateReferencePreviews();
+    }
+
+    // Global listener for pasting reference images
+    document.addEventListener('paste', function(event) {
+        // Only run if the active element is inside our tab content
+        const tabContent = document.getElementById('tab-content-ai-gen');
+        if (!tabContent || tabContent.classList.contains('hidden')) return;
+
+        const fileInput = document.getElementById('custom_reference_files');
+        if (!fileInput) return;
+
+        const items = (event.clipboardData || event.originalEvent.clipboardData).items;
+        let imagePasted = false;
+        const dataTransfer = new DataTransfer();
+
+        // First copy current files
+        Array.from(fileInput.files).forEach(f => dataTransfer.items.add(f));
+
+        for (let i = 0; i < items.length; i++) {
+            if (items[i].type.indexOf('image') !== -1) {
+                const file = items[i].getAsFile();
+                if (file) {
+                    // Create a descriptive name for the pasted image
+                    const renamedFile = new File([file], 'pasted_reference_' + Date.now() + '_' + i + '.png', { type: file.type });
+                    dataTransfer.items.add(renamedFile);
+                    imagePasted = true;
+                }
+            }
+        }
+
+        if (imagePasted) {
+            fileInput.files = dataTransfer.files;
+            updateReferencePreviews();
+            showToast("Wklejono obraz ze schowka!", "success");
+        }
+    });
 </script>
 {{ end }}
 
