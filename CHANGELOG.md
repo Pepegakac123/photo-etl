@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.7] - 2026-07-08
+### Fixed
+- **Global Autocomplete Search Serialization**: Added missing `name="q"` attribute to the search input in header, allowing HTMX to correctly serialize the search string and populate the query parameter `q` on requests to the backend.
+
 ## [1.2.6] - 2026-07-07
 ### Added
 - **Global Photo Autocomplete Search**: Added a global search box in the header. Users can search for photos across all services by their filename, title, or service name. When a photo is selected from the autocomplete list, the application automatically switches to the corresponding service's workspace, activates the "Zdjęcia w Projekcie" tab, scrolls to the photo card, and highlights it with a temporary glowing animation.
