@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.8] - 2026-07-14
+### Added
+- **French Language Support**: Added French (FR) translation support in the language dictionary and workspace selection menu.
+- **Service Translation Mapping**: Added translations for 25+ construction and renovation services to French (matching common industry terms like *Peinture intérieure*, *Menuiserie extérieure*, *Tableaux électriques*, *Plâtrerie*, *Ravalement de façade*, etc.).
+
 ## [1.2.7] - 2026-07-08
 ### Fixed
 - **Global Autocomplete Search Serialization**: Added missing `name="q"` attribute to the search input in header, allowing HTMX to correctly serialize the search string and populate the query parameter `q` on requests to the backend.
